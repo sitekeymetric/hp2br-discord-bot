@@ -170,8 +170,8 @@ async def create_debug_channel(ctx):
     except Exception as e:
         await ctx.send(f"❌ An error occurred while creating debug channel: {str(e)}")
 
-@bot.command(name='teams', help='Generate random teams from voice channel members. Usage: !teams 4:4:2 or !teams debug')
-async def generate_teams(ctx, team_format: str = None):
+@bot.group(name='teams', help='Team management commands', invoke_without_command=True)
+async def teams_group(ctx, team_format: str = None):
     """Generate random teams from voice channel members or create debug channel"""
     
     # Check if user is in a voice channel
@@ -247,8 +247,8 @@ async def generate_teams(ctx, team_format: str = None):
     except Exception as e:
         await ctx.send(f"❌ An error occurred: {str(e)}")
 
-@bot.command(name='cleanup', help='Clean up all HP2BR team channels')
-async def cleanup_teams(ctx):
+@teams_group.command(name='cleanup', help='Clean up all HP2BR team channels')
+async def cleanup_teams_subcommand(ctx):
     """Clean up all created team channels"""
     if not ctx.author.guild_permissions.manage_channels:
         await ctx.send("❌ You need 'Manage Channels' permission to use this command!")
@@ -294,8 +294,8 @@ async def cleanup_old_channels(guild: discord.Guild):
     
     return deleted_count
 
-@bot.command(name='teamhelp', help='Show detailed help for team commands')
-async def team_help(ctx):
+@teams_group.command(name='help', help='Show detailed help for team commands')
+async def team_help_subcommand(ctx):
     """Show detailed help information"""
     embed = discord.Embed(
         title="🤖 Team Generator Bot Help",
@@ -308,8 +308,8 @@ async def team_help(ctx):
         value=(
             "`!teams <format>` - Generate teams\n"
             "`!teams debug` - Create debug channel\n"
-            "`!cleanup` - Clean up team channels\n"
-            "`!teamhelp` - Show this help"
+            "`!teams cleanup` - Clean up team channels\n"
+            "`!teams help` - Show this help"
         ),
         inline=False
     )
@@ -331,7 +331,7 @@ async def team_help(ctx):
             "1. Join a voice channel\n"
             "2. Run `!teams <format>` or `!teams debug`\n"
             "3. Bot creates team/debug channels and moves members\n"
-            "4. Use `!cleanup` to remove channels when done"
+            "4. Use `!teams cleanup` to remove channels when done"
         ),
         inline=False
     )
@@ -349,9 +349,9 @@ async def team_help(ctx):
     embed.set_footer(text="Team channels are created in the 'HP2BRTeams' category")
     await ctx.send(embed=embed)
 
-@generate_teams.error
+@teams_group.error
 async def teams_error(ctx, error):
-    """Error handler for teams command"""
+    """Error handler for teams command group"""
     if isinstance(error, commands.MissingRequiredArgument):
         await ctx.send("❌ Please specify team format! Example: `!teams 4:4:2` or `!teams debug`")
     else:
