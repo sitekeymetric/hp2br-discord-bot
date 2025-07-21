@@ -17,6 +17,38 @@ intents.guilds = True
 
 bot = commands.Bot(command_prefix='!', intents=intents)
 
+class CleanupView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=300)  # 5 minutes timeout
+    
+    @discord.ui.button(label='🧹 Cleanup Debug Channels', style=discord.ButtonStyle.red)
+    async def cleanup_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Check if user has permissions
+        if not interaction.user.guild_permissions.manage_channels:
+            await interaction.response.send_message(
+                "❌ You need 'Manage Channels' permission to use this button!", 
+                ephemeral=True
+            )
+            return
+        
+        guild = interaction.guild
+        deleted_count = await cleanup_old_channels(guild)
+        
+        if deleted_count > 0:
+            await interaction.response.send_message(
+                f"✅ Cleaned up {deleted_count} team channels!", 
+                ephemeral=True
+            )
+        else:
+            await interaction.response.send_message(
+                "ℹ️ No team channels found to clean up.", 
+                ephemeral=True
+            )
+        
+        # Disable the button after use
+        button.disabled = True
+        await interaction.edit_original_response(view=self)
+
 class TeamGenerator:
     def __init__(self):
         self.created_channels = {}  # Guild ID -> List of created channel IDs
@@ -84,18 +116,77 @@ async def on_ready():
     print(f'{bot.user} has connected to Discord!')
     print(f'Bot is ready and connected to {len(bot.guilds)} guilds')
 
-@bot.command(name='teams', help='Generate random teams from voice channel members. Usage: !teams 4:4:2')
+async def create_debug_channel(ctx):
+    """Create a debug voice channel and move the caller to it"""
+    guild = ctx.guild
+    author = ctx.author
+    
+    try:
+        # Find or create a category for team channels
+        category = discord.utils.get(guild.categories, name="HP2BR Auto Teams")
+        if not category:
+            category = await guild.create_category("HP2BR Auto Teams")
+        
+        # Check if debug channel already exists
+        existing_debug = discord.utils.get(guild.voice_channels, name="HP2BR-Debug")
+        if existing_debug:
+            # Move user to existing debug channel
+            await author.move_to(existing_debug)
+            await ctx.send(f"✅ Moved you to existing debug channel: {existing_debug.mention}")
+            return
+        
+        # Create the debug voice channel
+        debug_channel = await guild.create_voice_channel(
+            name="HP2BR-Debug",
+            category=category,
+            reason="Debug channel created by team bot"
+        )
+        
+        # Move the caller to the debug channel
+        await author.move_to(debug_channel)
+        
+        # Store the channel for cleanup
+        if guild.id not in team_gen.created_channels:
+            team_gen.created_channels[guild.id] = []
+        team_gen.created_channels[guild.id].append(debug_channel.id)
+        
+        # Send confirmation with cleanup button
+        embed = discord.Embed(
+            title="🐛 Debug Channel Created!",
+            description=f"Created debug channel and moved {author.display_name} to it.",
+            color=0xffaa00
+        )
+        embed.add_field(
+            name="Channel",
+            value=debug_channel.mention,
+            inline=False
+        )
+        
+        view = CleanupView()
+        await ctx.send(embed=embed, view=view)
+        
+    except discord.Forbidden:
+        await ctx.send("❌ I don't have permission to create channels or move members!")
+    except Exception as e:
+        await ctx.send(f"❌ An error occurred while creating debug channel: {str(e)}")
+
+@bot.command(name='teams', help='Generate random teams from voice channel members. Usage: !teams 4:4:2 or !teams debug')
 async def generate_teams(ctx, team_format: str = None):
-    """Generate random teams from voice channel members"""
+    """Generate random teams from voice channel members or create debug channel"""
     
     # Check if user is in a voice channel
     if not ctx.author.voice or not ctx.author.voice.channel:
         await ctx.send("❌ You need to be in a voice channel to use this command!")
         return
     
+    # Handle debug command
+    if team_format and team_format.lower() == 'debug':
+        await create_debug_channel(ctx)
+        return
+    
     # Check if format is provided
     if not team_format:
-        await ctx.send("❌ Please specify team format! Example: `!teams 4:4:2`")
+        await ctx.send("❌ Please specify team format! Example: `!teams 4:4:2` or `!teams debug`")
         return
     
     voice_channel = ctx.author.voice.channel
@@ -172,17 +263,30 @@ async def cleanup_teams(ctx):
         await ctx.send("ℹ️ No team channels found to clean up.")
 
 async def cleanup_old_channels(guild: discord.Guild):
-    """Clean up old HP2BR team channels"""
+    """Clean up old HP2BR team channels, debug channels, and empty categories"""
     deleted_count = 0
     
-    # Find all HP2BR team channels
+    # Find all HP2BR team channels and debug channels
     for channel in guild.voice_channels:
-        if channel.name.startswith("HP2BR-Team-"):
+        if channel.name.startswith("HP2BR-Team-") or channel.name == "HP2BR-Debug":
             try:
                 await channel.delete(reason="Team generator cleanup")
                 deleted_count += 1
             except discord.HTTPException:
                 print(f"Failed to delete channel {channel.name}")
+    
+    # Clean up empty categories
+    categories_to_check = ["HP2BR Auto Teams", "HP2BRTeams"]
+    for category_name in categories_to_check:
+        category = discord.utils.get(guild.categories, name=category_name)
+        if category:
+            # Check if category is empty (no channels)
+            if len(category.channels) == 0:
+                try:
+                    await category.delete(reason="Team generator cleanup - empty category")
+                    print(f"Deleted empty category: {category_name}")
+                except discord.HTTPException:
+                    print(f"Failed to delete category {category_name}")
     
     # Clear stored channel IDs
     if guild.id in team_gen.created_channels:
@@ -203,6 +307,7 @@ async def team_help(ctx):
         name="📋 Commands",
         value=(
             "`!teams <format>` - Generate teams\n"
+            "`!teams debug` - Create debug channel\n"
             "`!cleanup` - Clean up team channels\n"
             "`!teamhelp` - Show this help"
         ),
@@ -214,7 +319,8 @@ async def team_help(ctx):
         value=(
             "`!teams 4:4` - Two teams of 4 members each\n"
             "`!teams 3:3:2` - Two teams of 3, one team of 2\n"
-            "`!teams 5:5:5:5` - Four teams of 5 members each"
+            "`!teams 5:5:5:5` - Four teams of 5 members each\n"
+            "`!teams debug` - Create HP2BR-Debug channel"
         ),
         inline=False
     )
@@ -223,9 +329,9 @@ async def team_help(ctx):
         name="🎯 How it works",
         value=(
             "1. Join a voice channel\n"
-            "2. Run `!teams <format>`\n"
-            "3. Bot creates team channels and moves members\n"
-            "4. Use `!cleanup` to remove team channels when done"
+            "2. Run `!teams <format>` or `!teams debug`\n"
+            "3. Bot creates team/debug channels and moves members\n"
+            "4. Use `!cleanup` to remove channels when done"
         ),
         inline=False
     )
@@ -235,19 +341,19 @@ async def team_help(ctx):
         value=(
             "• Bot needs 'Manage Channels' and 'Move Members' permissions\n"
             "• You must be in a voice channel\n"
-            "• Enough members for the specified team sizes"
+            "• Enough members for the specified team sizes (teams only)"
         ),
         inline=False
     )
     
-    embed.set_footer(text="Team channels are created in the 'HP2BR Teams' category")
+    embed.set_footer(text="Team channels are created in the 'HP2BRTeams' category")
     await ctx.send(embed=embed)
 
 @generate_teams.error
 async def teams_error(ctx, error):
     """Error handler for teams command"""
     if isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send("❌ Please specify team format! Example: `!teams 4:4:2`")
+        await ctx.send("❌ Please specify team format! Example: `!teams 4:4:2` or `!teams debug`")
     else:
         await ctx.send(f"❌ An error occurred: {str(error)}")
 
@@ -263,4 +369,6 @@ if __name__ == "__main__":
     print("   - Connect to Voice Channels")
     
     # Replace with your bot token
-    bot.run('add token here')
+    # print(os.environ["DISCORD_TOKEN"])
+    bot.run(os.environ["DISCORD_TOKEN"])
+
