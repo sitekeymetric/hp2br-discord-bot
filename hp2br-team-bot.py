@@ -75,7 +75,7 @@ class PlayerDatabase:
 
 class CleanupView(discord.ui.View):
     def __init__(self):
-        super().__init__(timeout=300)  # 5 minutes timeout
+        super().__init__(timeout=900)  # 15 minutes timeout (Discord's maximum)
     
     @discord.ui.button(label='🧹 Cleanup Debug Channels', style=discord.ButtonStyle.red)
     async def cleanup_button(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -88,11 +88,17 @@ class CleanupView(discord.ui.View):
             return
         
         guild = interaction.guild
-        deleted_count = await cleanup_old_channels(guild)
+        deleted_count, moved_count, failed_moves = await cleanup_old_channels(guild)
         
         if deleted_count > 0:
+            response_msg = f"✅ Cleaned up {deleted_count} team channels!"
+            if moved_count > 0:
+                response_msg += f"\n👥 Moved {moved_count} players to Waiting Room"
+            if failed_moves:
+                response_msg += f"\n⚠️ Some moves failed: {len(failed_moves)} players"
+            
             await interaction.response.send_message(
-                f"✅ Cleaned up {deleted_count} team channels!", 
+                response_msg, 
                 ephemeral=True
             )
         else:
@@ -110,6 +116,117 @@ class TeamGameView(discord.ui.View):
         super().__init__(timeout=3600)  # 1 hour timeout for games
         self.created_channels = created_channels
         self.guild = guild
+        
+        # Add individual team end buttons (max 5 to fit in Discord's limits)
+        for i, channel in enumerate(self.created_channels[:5], 1):
+            button = discord.ui.Button(
+                label=f'🏁 End Team {i}',
+                style=discord.ButtonStyle.secondary,
+                custom_id=f'end_team_{i}'
+            )
+            button.callback = self.create_end_team_callback(i-1, channel)
+            self.add_item(button)
+    
+    def create_end_team_callback(self, team_index: int, channel: discord.VoiceChannel):
+        """Create a callback function for ending a specific team"""
+        async def end_team_callback(interaction: discord.Interaction):
+            try:
+                # Find the "Waiting Room" channel
+                waiting_room = discord.utils.get(self.guild.voice_channels, name="Waiting Room")
+                
+                if not waiting_room:
+                    await interaction.response.send_message(
+                        "❌ Could not find 'Waiting Room' voice channel! Please create one or manually move players.",
+                        ephemeral=True
+                    )
+                    return
+                
+                # Check if channel still exists
+                if not channel or channel not in self.created_channels:
+                    await interaction.response.send_message(
+                        f"❌ Team {team_index + 1} channel no longer exists!",
+                        ephemeral=True
+                    )
+                    return
+                
+                # Count members moved
+                moved_count = 0
+                failed_moves = []
+                
+                # Move all members from this team channel back to waiting room
+                if hasattr(channel, 'members'):
+                    for member in channel.members.copy():
+                        try:
+                            await member.move_to(waiting_room)
+                            moved_count += 1
+                        except discord.HTTPException as e:
+                            failed_moves.append(f"{member.display_name}: {str(e)}")
+                            print(f"Failed to move {member.display_name}: {e}")
+                
+                # Delete the team channel
+                try:
+                    channel_name = channel.name
+                    await channel.delete(reason=f"End Team {team_index + 1} - cleaning up team channel")
+                    
+                    # Remove from our tracking
+                    if channel in self.created_channels:
+                        self.created_channels.remove(channel)
+                    
+                    # Remove from global tracking
+                    if self.guild.id in team_gen.created_channels:
+                        try:
+                            team_gen.created_channels[self.guild.id].remove(channel.id)
+                        except ValueError:
+                            pass  # Channel ID not in list
+                    
+                except discord.HTTPException as e:
+                    await interaction.response.send_message(
+                        f"❌ Failed to delete Team {team_index + 1} channel: {str(e)}",
+                        ephemeral=True
+                    )
+                    return
+                
+                # Create success message
+                success_msg = f"✅ **Team {team_index + 1} Ended!**\n"
+                success_msg += f"• Moved {moved_count} players to {waiting_room.mention}\n"
+                success_msg += f"• Deleted channel: {channel_name}"
+                
+                if failed_moves:
+                    success_msg += f"\n⚠️ Failed to move: {', '.join(failed_moves[:3])}"
+                
+                # Disable the button for this team
+                for item in self.children:
+                    if hasattr(item, 'custom_id') and item.custom_id == f'end_team_{team_index + 1}':
+                        item.disabled = True
+                        break
+                
+                # Check if we need to clean up empty categories
+                if len(self.created_channels) == 0:
+                    categories_to_check = ["HP2BR Auto Teams", "HP2BRTeams"]
+                    for category_name in categories_to_check:
+                        category = discord.utils.get(self.guild.categories, name=category_name)
+                        if category and len(category.channels) == 0:
+                            try:
+                                await category.delete(reason="End game cleanup - empty category")
+                                print(f"Deleted empty category: {category_name}")
+                            except discord.HTTPException:
+                                pass
+                
+                await interaction.response.send_message(success_msg, ephemeral=True)
+                
+                # Update the view to reflect the disabled button
+                try:
+                    await interaction.edit_original_response(view=self)
+                except discord.NotFound:
+                    pass  # Original message might be gone
+                
+            except Exception as e:
+                await interaction.response.send_message(
+                    f"❌ An error occurred while ending Team {team_index + 1}: {str(e)}",
+                    ephemeral=True
+                )
+        
+        return end_team_callback
     
     @discord.ui.button(label='🏁 End Game All', style=discord.ButtonStyle.red)
     async def end_game_button(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -180,8 +297,9 @@ class TeamGameView(discord.ui.View):
             
             embed.set_footer(text="All team channels have been cleaned up!")
             
-            # Disable the button after use
-            button.disabled = True
+            # Disable all buttons after use
+            for item in self.children:
+                item.disabled = True
             await interaction.response.edit_message(embed=embed, view=self)
             
         except Exception as e:
@@ -193,7 +311,7 @@ class TeamGameView(discord.ui.View):
 class TeamCreationView(discord.ui.View):
     def __init__(self, teams: List[List[discord.Member]], team_stats: List[Tuple[float, List[int]]], 
                  guild: discord.Guild, balanced: bool):
-        super().__init__(timeout=300)  # 5 minutes timeout
+        super().__init__(timeout=900)  # 15 minutes timeout (Discord's maximum)
         self.teams = teams
         self.team_stats = team_stats
         self.guild = guild
@@ -204,7 +322,7 @@ class TeamCreationView(discord.ui.View):
     async def create_teams_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         try:
             # Clean up old team channels first
-            await cleanup_old_channels(self.guild)
+            deleted_count, moved_count, failed_moves = await cleanup_old_channels(self.guild)
             
             # Find or create a category for team channels
             category = None
@@ -240,14 +358,38 @@ class TeamCreationView(discord.ui.View):
                     inline=True
                 )
             
-            embed.set_footer(text="All members have been moved to their team channels! Click 'End Game All' when finished.")
+            embed.set_footer(text="All members have been moved to their team channels! Use individual team buttons or 'End Game All' when finished.")
             
-            # Create new view with End Game button
+            # Add note if there are more than 5 teams (button limit)
+            if len(self.teams) > 5:
+                embed.add_field(
+                    name="⚠️ Note",
+                    value=f"Only showing End buttons for first 5 teams. Teams 6-{len(self.teams)} can be ended with 'End Game All' or manual cleanup.",
+                    inline=False
+                )
+            
+            # Disable the create button immediately
+            button.disabled = True
+            await interaction.response.edit_message(embed=embed, view=self)
+            
+            # Wait 5 seconds before showing End Game controls
+            await asyncio.sleep(5)
+            
+            # Create new view with End Game button after delay
             new_view = TeamGameView(self.created_channels, self.guild)
             
-            # Disable the create button
-            button.disabled = True
-            await interaction.response.edit_message(embed=embed, view=new_view)
+            # Update the message with End Game controls
+            embed.add_field(
+                name="🎮 Game Controls Available",
+                value="You can now end individual teams or the entire game using the buttons below.",
+                inline=False
+            )
+            
+            try:
+                await interaction.edit_original_response(embed=embed, view=new_view)
+            except discord.NotFound:
+                # If original message was deleted, send a new one
+                await interaction.followup.send(embed=embed, view=new_view)
             
         except discord.Forbidden:
             await interaction.response.send_message(
@@ -270,12 +412,38 @@ class TeamCreationView(discord.ui.View):
                             description=f"Created {len(self.teams)} team channels without category!",
                             color=0x00ff00
                         )
-                        embed.set_footer(text="Teams created successfully! Click 'End Game All' when finished.")
+                        embed.set_footer(text="Teams created successfully! Use individual team buttons or 'End Game All' when finished.")
                         
-                        # Create new view with End Game button
-                        new_view = TeamGameView(self.created_channels, self.guild)
+                        # Add note if there are more than 5 teams (button limit)
+                        if len(self.teams) > 5:
+                            embed.add_field(
+                                name="⚠️ Note",
+                                value=f"Only showing End buttons for first 5 teams. Teams 6-{len(self.teams)} can be ended with 'End Game All' or manual cleanup.",
+                                inline=False
+                            )
+                        
+                        # Disable the create button immediately
                         button.disabled = True
-                        await interaction.edit_original_response(embed=embed, view=new_view)
+                        await interaction.edit_original_response(embed=embed, view=self)
+                        
+                        # Wait 5 seconds before showing End Game controls
+                        await asyncio.sleep(5)
+                        
+                        # Create new view with End Game button after delay
+                        new_view = TeamGameView(self.created_channels, self.guild)
+                        
+                        # Update the message with End Game controls
+                        embed.add_field(
+                            name="🎮 Game Controls Available",
+                            value="You can now end individual teams or the entire game using the buttons below.",
+                            inline=False
+                        )
+                        
+                        try:
+                            await interaction.edit_original_response(embed=embed, view=new_view)
+                        except discord.NotFound:
+                            # If original message was deleted, send a new one
+                            await interaction.followup.send(embed=embed, view=new_view)
                 except Exception as retry_e:
                     await interaction.followup.send(f"❌ Retry failed: {str(retry_e)}", ephemeral=True)
             else:
@@ -436,11 +604,12 @@ class TeamGenerator:
                 
                 created_channels.append(channel)
                 
-                # Move members to the new channel
+                # Move members to the new channel with 1-second delay between moves
                 for member in team:
                     try:
                         if member.voice:  # Check if member is still in a voice channel
                             await member.move_to(channel)
+                            await asyncio.sleep(1)  # 1-second delay after moving each player
                     except discord.HTTPException:
                         print(f"Failed to move {member.display_name} to {channel_name}")
                         
@@ -708,21 +877,60 @@ async def cleanup_teams_subcommand(ctx):
         return
     
     guild = ctx.guild
-    deleted_count = await cleanup_old_channels(guild)
+    deleted_count, moved_count, failed_moves = await cleanup_old_channels(guild)
     
     if deleted_count > 0:
-        await ctx.send(f"✅ Cleaned up {deleted_count} team channels!")
+        embed = discord.Embed(
+            title="✅ Cleanup Complete!",
+            description=f"Cleaned up {deleted_count} team channels",
+            color=0x00ff00
+        )
+        
+        if moved_count > 0:
+            embed.add_field(
+                name="👥 Players Moved",
+                value=f"Moved {moved_count} players to Waiting Room",
+                inline=False
+            )
+        
+        if failed_moves:
+            embed.add_field(
+                name="⚠️ Failed Moves",
+                value="\n".join(failed_moves[:5]),  # Show first 5 failures
+                inline=False
+            )
+        
+        await ctx.send(embed=embed)
     else:
         await ctx.send("ℹ️ No team channels found to clean up.")
 
 async def cleanup_old_channels(guild: discord.Guild):
     """Clean up old HP2BR team channels, debug channels, and empty categories"""
     deleted_count = 0
+    moved_count = 0
+    failed_moves = []
+    
+    # Find the "Waiting Room" channel
+    waiting_room = discord.utils.get(guild.voice_channels, name="Waiting Room")
+    
+    if not waiting_room:
+        print("Warning: No 'Waiting Room' channel found. Players will not be moved during cleanup.")
     
     # Find all HP2BR team channels and debug channels
     for channel in guild.voice_channels:
         if channel.name.startswith("HP2BR-Team-") or channel.name == "HP2BR-Debug":
             try:
+                # Move all members to Waiting Room before deleting channel
+                if waiting_room and hasattr(channel, 'members'):
+                    for member in channel.members.copy():  # Copy list to avoid modification during iteration
+                        try:
+                            await member.move_to(waiting_room)
+                            moved_count += 1
+                        except discord.HTTPException as e:
+                            failed_moves.append(f"{member.display_name}: {str(e)}")
+                            print(f"Failed to move {member.display_name} during cleanup: {e}")
+                
+                # Delete the channel
                 await channel.delete(reason="Team generator cleanup")
                 deleted_count += 1
             except discord.HTTPException:
@@ -745,7 +953,7 @@ async def cleanup_old_channels(guild: discord.Guild):
     if guild.id in team_gen.created_channels:
         team_gen.created_channels[guild.id] = []
     
-    return deleted_count
+    return deleted_count, moved_count, failed_moves
 
 @teams_group.command(name='help', help='Show detailed help for team commands')
 async def team_help_subcommand(ctx):
@@ -808,8 +1016,11 @@ async def team_help_subcommand(ctx):
             "3. Run `!teams <format>` (random) or `!teams <format> balanced`\n"
             "4. **NEW:** Review the team preview and click 'Create Team Channels' button\n"
             "5. Bot creates team channels and moves members\n"
-            "6. **NEW:** When game is finished, click 'End Game All' to move everyone back to 'Waiting Room' and cleanup channels\n"
-            "7. Alternative: Use `!teams cleanup` to manually remove channels"
+            "6. **NEW:** During game:\n"
+            "   • Click 'End Team X' to end individual teams\n"
+            "   • Click 'End Game All' to end all teams at once\n"
+            "7. Players moved back to 'Waiting Room' and channels deleted\n"
+            "8. Alternative: Use `!teams cleanup` to manually remove channels"
         ),
         inline=False
     )
