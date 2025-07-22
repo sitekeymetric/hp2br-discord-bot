@@ -105,6 +105,66 @@ class CleanupView(discord.ui.View):
         button.disabled = True
         await interaction.edit_original_response(view=self)
 
+class TeamCreationView(discord.ui.View):
+    def __init__(self, teams: List[List[discord.Member]], team_stats: List[Tuple[float, List[int]]], 
+                 guild: discord.Guild, balanced: bool):
+        super().__init__(timeout=300)  # 5 minutes timeout
+        self.teams = teams
+        self.team_stats = team_stats
+        self.guild = guild
+        self.balanced = balanced
+    
+    @discord.ui.button(label='🎯 Create Team Channels & Move Players', style=discord.ButtonStyle.green)
+    async def create_teams_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        try:
+            # Find or create a category for team channels
+            category = discord.utils.get(self.guild.categories, name="HP2BRTeams")
+            if not category:
+                category = await self.guild.create_category("HP2BRTeams")
+            
+            # Clean up old team channels first
+            await cleanup_old_channels(self.guild)
+            
+            # Create team channels and move members
+            created_channels = await team_gen.create_team_channels(self.guild, category, self.teams)
+            
+            # Store created channels for cleanup
+            if self.guild.id not in team_gen.created_channels:
+                team_gen.created_channels[self.guild.id] = []
+            team_gen.created_channels[self.guild.id].extend([ch.id for ch in created_channels])
+            
+            # Create success embed
+            embed = discord.Embed(
+                title="✅ Teams Created Successfully!",
+                description=f"Created {len(self.teams)} team channels and moved all players!",
+                color=0x00ff00
+            )
+            
+            for i, (team, channel) in enumerate(zip(self.teams, created_channels), 1):
+                team_names = [f"• {member.display_name}" for member in team]
+                embed.add_field(
+                    name=f"Team {i} - {channel.name}",
+                    value="\n".join(team_names),
+                    inline=True
+                )
+            
+            embed.set_footer(text="All members have been moved to their team channels!")
+            
+            # Disable the button after use
+            button.disabled = True
+            await interaction.response.edit_message(embed=embed, view=self)
+            
+        except discord.Forbidden:
+            await interaction.response.send_message(
+                "❌ I don't have permission to create channels or move members!", 
+                ephemeral=True
+            )
+        except Exception as e:
+            await interaction.response.send_message(
+                f"❌ An error occurred while creating teams: {str(e)}", 
+                ephemeral=True
+            )
+
 class TeamGenerator:
     def __init__(self):
         self.created_channels = {}  # Guild ID -> List of created channel IDs
@@ -352,30 +412,14 @@ async def teams_group(ctx, *, team_format: str = None):
             teams = team_gen.create_random_teams(members, team_sizes)
             team_type = "Random Teams"
         
-        # Find or create a category for team channels
-        category = discord.utils.get(guild.categories, name="HP2BRTeams")
-        if not category:
-            category = await guild.create_category("HP2BRTeams")
-        
-        # Clean up old team channels first
-        await cleanup_old_channels(guild)
-        
-        # Create team channels and move members
-        created_channels = await team_gen.create_team_channels(guild, category, teams)
-        
-        # Store created channels for cleanup
-        if guild.id not in team_gen.created_channels:
-            team_gen.created_channels[guild.id] = []
-        team_gen.created_channels[guild.id].extend([ch.id for ch in created_channels])
-        
         # Calculate team statistics
         team_stats = team_gen.calculate_team_stats(teams)
         
-        # Create response embed
+        # Create response embed showing the proposed teams
         embed = discord.Embed(
-            title=f"🎯 {team_type} Generated!",
-            description=f"Created {len(teams)} teams from {len(members)} members",
-            color=0x00ff00 if not balanced else 0x0099ff
+            title=f"🎯 {team_type} Preview",
+            description=f"Generated {len(teams)} teams from {len(members)} members\n**Click the button below to create channels and move players!**",
+            color=0x0099ff if not balanced else 0x00aa99
         )
         
         for i, (team, (avg_skill, skills)) in enumerate(zip(teams, team_stats), 1):
@@ -403,8 +447,11 @@ async def teams_group(ctx, *, team_format: str = None):
                 inline=False
             )
         
-        embed.set_footer(text="Members have been moved to their team channels!")
-        await ctx.send(embed=embed)
+        embed.set_footer(text="Teams are ready! Click the button to create channels and move players.")
+        
+        # Create the view with the team creation button
+        view = TeamCreationView(teams, team_stats, guild, balanced)
+        await ctx.send(embed=embed, view=view)
         
     except ValueError as e:
         await ctx.send(f"❌ {str(e)}")
@@ -552,8 +599,8 @@ async def team_help_subcommand(ctx):
     embed.add_field(
         name="📋 Team Commands",
         value=(
-            "`!teams <format>` - Generate random teams\n"
-            "`!teams <format> balanced` - Generate balanced teams\n"
+            "`!teams <format>` - Generate random teams (shows preview with button)\n"
+            "`!teams <format> balanced` - Generate balanced teams (shows preview with button)\n"
             "`!teams debug` - Create debug channel\n"
             "`!teams cleanup` - Clean up team channels"
         ),
@@ -599,8 +646,9 @@ async def team_help_subcommand(ctx):
             "1. Set your skill level with `!teams skill <1-10>`\n"
             "2. Join a voice channel\n"
             "3. Run `!teams <format>` (random) or `!teams <format> balanced`\n"
-            "4. Bot creates team channels and moves members\n"
-            "5. Use `!teams cleanup` to remove channels when done"
+            "4. **NEW:** Review the team preview and click 'Create Team Channels' button\n"
+            "5. Bot creates team channels and moves members\n"
+            "6. Use `!teams cleanup` to remove channels when done"
         ),
         inline=False
     )
@@ -624,6 +672,7 @@ if __name__ == "__main__":
     print("- Random team generation")
     print("- Balanced team generation based on skill levels")
     print("- Player skill management commands")
+    print("- Button-based team creation (NEW)")
     print()
     print("Make sure to:")
     print("1. Set your DISCORD_TOKEN environment variable")
