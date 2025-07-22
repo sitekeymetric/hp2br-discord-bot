@@ -105,6 +105,91 @@ class CleanupView(discord.ui.View):
         button.disabled = True
         await interaction.edit_original_response(view=self)
 
+class TeamGameView(discord.ui.View):
+    def __init__(self, created_channels: List[discord.VoiceChannel], guild: discord.Guild):
+        super().__init__(timeout=3600)  # 1 hour timeout for games
+        self.created_channels = created_channels
+        self.guild = guild
+    
+    @discord.ui.button(label='🏁 End Game All', style=discord.ButtonStyle.red)
+    async def end_game_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        try:
+            # Find the "Waiting Room" channel
+            waiting_room = discord.utils.get(self.guild.voice_channels, name="Waiting Room")
+            
+            if not waiting_room:
+                await interaction.response.send_message(
+                    "❌ Could not find 'Waiting Room' voice channel! Please create one or manually move players.",
+                    ephemeral=True
+                )
+                return
+            
+            # Count members moved
+            moved_count = 0
+            failed_moves = []
+            
+            # Move all members from team channels back to waiting room
+            for channel in self.created_channels:
+                if channel and hasattr(channel, 'members'):  # Check if channel still exists
+                    for member in channel.members.copy():  # Copy list to avoid modification during iteration
+                        try:
+                            await member.move_to(waiting_room)
+                            moved_count += 1
+                        except discord.HTTPException as e:
+                            failed_moves.append(f"{member.display_name}: {str(e)}")
+                            print(f"Failed to move {member.display_name}: {e}")
+            
+            # Delete the team channels
+            deleted_count = 0
+            for channel in self.created_channels:
+                try:
+                    if channel:  # Check if channel still exists
+                        await channel.delete(reason="End game - cleaning up team channels")
+                        deleted_count += 1
+                except discord.HTTPException as e:
+                    print(f"Failed to delete channel {channel.name if channel else 'Unknown'}: {e}")
+            
+            # Clean up empty categories
+            categories_to_check = ["HP2BR Auto Teams", "HP2BRTeams"]
+            for category_name in categories_to_check:
+                category = discord.utils.get(self.guild.categories, name=category_name)
+                if category and len(category.channels) == 0:
+                    try:
+                        await category.delete(reason="End game cleanup - empty category")
+                        print(f"Deleted empty category: {category_name}")
+                    except discord.HTTPException:
+                        pass
+            
+            # Clear stored channel IDs
+            if self.guild.id in team_gen.created_channels:
+                team_gen.created_channels[self.guild.id] = []
+            
+            # Create success embed
+            embed = discord.Embed(
+                title="🏁 Game Ended Successfully!",
+                description=f"Moved {moved_count} players back to {waiting_room.mention}\nDeleted {deleted_count} team channels",
+                color=0xff6b6b
+            )
+            
+            if failed_moves:
+                embed.add_field(
+                    name="⚠️ Failed to move some players",
+                    value="\n".join(failed_moves[:5]),  # Show first 5 failures
+                    inline=False
+                )
+            
+            embed.set_footer(text="All team channels have been cleaned up!")
+            
+            # Disable the button after use
+            button.disabled = True
+            await interaction.response.edit_message(embed=embed, view=self)
+            
+        except Exception as e:
+            await interaction.response.send_message(
+                f"❌ An error occurred while ending the game: {str(e)}",
+                ephemeral=True
+            )
+
 class TeamCreationView(discord.ui.View):
     def __init__(self, teams: List[List[discord.Member]], team_stats: List[Tuple[float, List[int]]], 
                  guild: discord.Guild, balanced: bool):
@@ -113,22 +198,29 @@ class TeamCreationView(discord.ui.View):
         self.team_stats = team_stats
         self.guild = guild
         self.balanced = balanced
+        self.created_channels = []  # Store created channels for cleanup
     
     @discord.ui.button(label='🎯 Create Team Channels & Move Players', style=discord.ButtonStyle.green)
     async def create_teams_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         try:
-            # Find or create a category for team channels
-            category = discord.utils.get(self.guild.categories, name="HP2BRTeams")
-            if not category:
-                category = await self.guild.create_category("HP2BRTeams")
-            
             # Clean up old team channels first
             await cleanup_old_channels(self.guild)
+            
+            # Find or create a category for team channels
+            category = None
+            try:
+                category = discord.utils.get(self.guild.categories, name="HP2BRTeams")
+                if not category:
+                    category = await self.guild.create_category("HP2BRTeams")
+            except discord.HTTPException as e:
+                print(f"Warning: Failed to create category, channels will be created without category: {e}")
+                category = None
             
             # Create team channels and move members
             created_channels = await team_gen.create_team_channels(self.guild, category, self.teams)
             
             # Store created channels for cleanup
+            self.created_channels = created_channels
             if self.guild.id not in team_gen.created_channels:
                 team_gen.created_channels[self.guild.id] = []
             team_gen.created_channels[self.guild.id].extend([ch.id for ch in created_channels])
@@ -148,17 +240,49 @@ class TeamCreationView(discord.ui.View):
                     inline=True
                 )
             
-            embed.set_footer(text="All members have been moved to their team channels!")
+            embed.set_footer(text="All members have been moved to their team channels! Click 'End Game All' when finished.")
             
-            # Disable the button after use
+            # Create new view with End Game button
+            new_view = TeamGameView(self.created_channels, self.guild)
+            
+            # Disable the create button
             button.disabled = True
-            await interaction.response.edit_message(embed=embed, view=self)
+            await interaction.response.edit_message(embed=embed, view=new_view)
             
         except discord.Forbidden:
             await interaction.response.send_message(
                 "❌ I don't have permission to create channels or move members!", 
                 ephemeral=True
             )
+        except discord.HTTPException as e:
+            if "Parent_id: Category does not exist" in str(e):
+                await interaction.response.send_message(
+                    "❌ Category creation failed. Retrying without category...", 
+                    ephemeral=True
+                )
+                # Retry without category
+                try:
+                    created_channels = await team_gen.create_team_channels(self.guild, None, self.teams)
+                    if created_channels:
+                        self.created_channels = created_channels
+                        embed = discord.Embed(
+                            title="✅ Teams Created (No Category)",
+                            description=f"Created {len(self.teams)} team channels without category!",
+                            color=0x00ff00
+                        )
+                        embed.set_footer(text="Teams created successfully! Click 'End Game All' when finished.")
+                        
+                        # Create new view with End Game button
+                        new_view = TeamGameView(self.created_channels, self.guild)
+                        button.disabled = True
+                        await interaction.edit_original_response(embed=embed, view=new_view)
+                except Exception as retry_e:
+                    await interaction.followup.send(f"❌ Retry failed: {str(retry_e)}", ephemeral=True)
+            else:
+                await interaction.response.send_message(
+                    f"❌ Discord API error: {str(e)}", 
+                    ephemeral=True
+                )
         except Exception as e:
             await interaction.response.send_message(
                 f"❌ An error occurred while creating teams: {str(e)}", 
@@ -277,29 +401,53 @@ class TeamGenerator:
         
         return team_stats
     
-    async def create_team_channels(self, guild: discord.Guild, category: discord.CategoryChannel, 
+    async def create_team_channels(self, guild: discord.Guild, category: Optional[discord.CategoryChannel], 
                                  teams: List[List[discord.Member]]) -> List[discord.VoiceChannel]:
         """Create voice channels for each team"""
         created_channels = []
         
+        # Ensure category exists or create it
+        if category is None:
+            try:
+                category = discord.utils.get(guild.categories, name="HP2BRTeams")
+                if not category:
+                    category = await guild.create_category("HP2BRTeams")
+            except discord.HTTPException as e:
+                print(f"Failed to create category: {e}")
+                category = None
+        
         for i, team in enumerate(teams, 1):
             channel_name = f"HP2BR-Team-{i}"
             
-            # Create the voice channel
-            channel = await guild.create_voice_channel(
-                name=channel_name,
-                category=category,
-                reason="Team generator bot - creating team channels"
-            )
-            
-            created_channels.append(channel)
-            
-            # Move members to the new channel
-            for member in team:
-                try:
-                    await member.move_to(channel)
-                except discord.HTTPException:
-                    print(f"Failed to move {member.display_name} to {channel_name}")
+            # Create the voice channel with or without category
+            try:
+                if category:
+                    channel = await guild.create_voice_channel(
+                        name=channel_name,
+                        category=category,
+                        reason="Team generator bot - creating team channels"
+                    )
+                else:
+                    # Create without category if category creation failed
+                    channel = await guild.create_voice_channel(
+                        name=channel_name,
+                        reason="Team generator bot - creating team channels"
+                    )
+                
+                created_channels.append(channel)
+                
+                # Move members to the new channel
+                for member in team:
+                    try:
+                        if member.voice:  # Check if member is still in a voice channel
+                            await member.move_to(channel)
+                    except discord.HTTPException:
+                        print(f"Failed to move {member.display_name} to {channel_name}")
+                        
+            except discord.HTTPException as e:
+                print(f"Failed to create channel {channel_name}: {e}")
+                # Continue with other channels even if one fails
+                continue
         
         return created_channels
 
@@ -319,25 +467,37 @@ async def create_debug_channel(ctx):
     author = ctx.author
     
     try:
-        # Find or create a category for team channels
-        category = discord.utils.get(guild.categories, name="HP2BR Auto Teams")
-        if not category:
-            category = await guild.create_category("HP2BR Auto Teams")
-        
-        # Check if debug channel already exists
+        # Check if debug channel already exists first
         existing_debug = discord.utils.get(guild.voice_channels, name="HP2BR-Debug")
         if existing_debug:
             # Move user to existing debug channel
-            await author.move_to(existing_debug)
+            if author.voice:  # Check if user is still in a voice channel
+                await author.move_to(existing_debug)
             await ctx.send(f"✅ Moved you to existing debug channel: {existing_debug.mention}")
             return
         
+        # Find or create a category for team channels
+        category = None
+        try:
+            category = discord.utils.get(guild.categories, name="HP2BR Auto Teams")
+            if not category:
+                category = await guild.create_category("HP2BR Auto Teams")
+        except discord.HTTPException as e:
+            print(f"Warning: Failed to create category, debug channel will be created without category: {e}")
+            category = None
+        
         # Create the debug voice channel
-        debug_channel = await guild.create_voice_channel(
-            name="HP2BR-Debug",
-            category=category,
-            reason="Debug channel created by team bot"
-        )
+        if category:
+            debug_channel = await guild.create_voice_channel(
+                name="HP2BR-Debug",
+                category=category,
+                reason="Debug channel created by team bot"
+            )
+        else:
+            debug_channel = await guild.create_voice_channel(
+                name="HP2BR-Debug",
+                reason="Debug channel created by team bot"
+            )
         
         # Move the caller to the debug channel
         await author.move_to(debug_channel)
@@ -648,7 +808,18 @@ async def team_help_subcommand(ctx):
             "3. Run `!teams <format>` (random) or `!teams <format> balanced`\n"
             "4. **NEW:** Review the team preview and click 'Create Team Channels' button\n"
             "5. Bot creates team channels and moves members\n"
-            "6. Use `!teams cleanup` to remove channels when done"
+            "6. **NEW:** When game is finished, click 'End Game All' to move everyone back to 'Waiting Room' and cleanup channels\n"
+            "7. Alternative: Use `!teams cleanup` to manually remove channels"
+        ),
+        inline=False
+    )
+    
+    embed.add_field(
+        name="📝 Requirements",
+        value=(
+            "• Create a voice channel named 'Waiting Room' for the End Game functionality\n"
+            "• Bot needs 'Manage Channels' and 'Move Members' permissions\n"
+            "• Users must be in a voice channel to generate teams"
         ),
         inline=False
     )
