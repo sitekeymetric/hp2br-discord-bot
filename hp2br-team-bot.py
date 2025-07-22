@@ -3,7 +3,7 @@ from discord.ext import commands
 import random
 import asyncio
 from typing import List, Optional, Tuple
-import re, os
+import re, os, time
 import certifi
 import sqlite3
 import statistics
@@ -113,7 +113,7 @@ class CleanupView(discord.ui.View):
 
 class TeamGameView(discord.ui.View):
     def __init__(self, created_channels: List[discord.VoiceChannel], guild: discord.Guild):
-        super().__init__(timeout=3600)  # 1 hour timeout for games
+        super().__init__(timeout=2700)  # 45 min timeout for games
         self.created_channels = created_channels
         self.guild = guild
         
@@ -343,12 +343,7 @@ class TeamCreationView(discord.ui.View):
                 team_gen.created_channels[self.guild.id] = []
             team_gen.created_channels[self.guild.id].extend([ch.id for ch in created_channels])
             
-            # Create success embed
-            embed = discord.Embed(
-                title="✅ Teams Created Successfully!",
-                description=f"Created {len(self.teams)} team channels and moved all players!",
-                color=0x00ff00
-            )
+      
             
             for i, (team, channel) in enumerate(zip(self.teams, created_channels), 1):
                 team_names = [f"• {member.display_name}" for member in team]
@@ -358,22 +353,29 @@ class TeamCreationView(discord.ui.View):
                     inline=True
                 )
             
+
+            # Create success embed
+            embed = discord.Embed(
+                title="✅ Teams Created Successfully!",
+                description=f"Created {len(self.teams)} team channels and moved all players!",
+                color=0x00ff00
+            )
             embed.set_footer(text="All members have been moved to their team channels! Use individual team buttons or 'End Game All' when finished.")
             
-            # Add note if there are more than 5 teams (button limit)
-            if len(self.teams) > 5:
-                embed.add_field(
-                    name="⚠️ Note",
-                    value=f"Only showing End buttons for first 5 teams. Teams 6-{len(self.teams)} can be ended with 'End Game All' or manual cleanup.",
-                    inline=False
-                )
+            # # Add note if there are more than 5 teams (button limit)
+            # if len(self.teams) > 5:
+            #     embed.add_field(
+            #         name="⚠️ Note",
+            #         value=f"Only showing End for first 5 teams.",
+            #         inline=False
+            #     )
             
             # Disable the create button immediately
             button.disabled = True
             await interaction.response.edit_message(embed=embed, view=self)
             
             # Wait 5 seconds before showing End Game controls
-            await asyncio.sleep(5)
+            time.sleep(5)
             
             # Create new view with End Game button after delay
             new_view = TeamGameView(self.created_channels, self.guild)
@@ -418,7 +420,7 @@ class TeamCreationView(discord.ui.View):
                         if len(self.teams) > 5:
                             embed.add_field(
                                 name="⚠️ Note",
-                                value=f"Only showing End buttons for first 5 teams. Teams 6-{len(self.teams)} can be ended with 'End Game All' or manual cleanup.",
+                                value=f"Only showing End buttons for first 5 teams. ",
                                 inline=False
                             )
                         
@@ -1048,7 +1050,7 @@ async def teams_error(ctx, error):
 
 # Run the bot
 if __name__ == "__main__":
-    print("Starting Enhanced Discord Team Generator Bot...")
+    print("Starting Enhanced Discord Team Generator Bot... v0.0.1")
     print("Features:")
     print("- SQLite database for player skill storage")
     print("- Random team generation")
@@ -1059,10 +1061,8 @@ if __name__ == "__main__":
     print("Make sure to:")
     print("1. Set your DISCORD_TOKEN environment variable")
     print("2. Invite the bot with proper permissions:")
-    print("   - Manage Channels")
-    print("   - Move Members") 
-    print("   - Send Messages")
-    print("   - Connect to Voice Channels")
+    print("3. Activate using !teams command in discord")
+  
     
     # Replace with your bot token
     bot.run(os.environ["DISCORD_TOKEN"])
