@@ -15,8 +15,11 @@ intents.message_content = True
 intents.voice_states = True
 intents.guilds = True
 
+#
+bot_version = "0.0.2"
 bot = commands.Bot(command_prefix='!', intents=intents)
 
+copyright_notice = "Discord Team Bot by Paizen - v" + str(bot_version) + " "
 class PlayerDatabase:
     def __init__(self, db_path: str = "hp2br_players.db"):
         self.db_path = db_path
@@ -354,7 +357,8 @@ class TeamGameView(discord.ui.View):
 class TeamCreationView(discord.ui.View):
     def __init__(self, teams: List[List[discord.Member]], team_stats: List[Tuple[float, List[int], List[str]]], 
                  guild: discord.Guild, balanced: bool):
-        super().__init__(timeout=900)  # 15 minutes timeout (Discord's maximum)
+        #super().__init__(timeout=900)  # 15 minutes timeout (Discord's maximum)
+        super().__init__(timeout=None) #Setting it Discord UI time out to None per Google Search
         self.teams = teams
         self.team_stats = team_stats
         self.guild = guild
@@ -416,7 +420,7 @@ class TeamCreationView(discord.ui.View):
             await interaction.response.edit_message(embed=embed, view=self)
             
             # Wait 5 seconds before showing End Game controls
-            await asyncio.sleep(5)
+            await asyncio.sleep(30)
             
             # Create new view with End Game button after delay
             new_view = TeamGameView(self.created_channels, self.guild)
@@ -754,7 +758,7 @@ class TeamGenerator:
                     try:
                         if member.voice:  # Check if member is still in a voice channel
                             await member.move_to(channel)
-                            await asyncio.sleep(1)  # 1-second delay after moving each player
+                            await asyncio.sleep(0.3)  # 1-second delay after moving each player
                     except discord.HTTPException:
                         print(f"Failed to move {member.display_name} to {channel_name}")
                         
@@ -897,7 +901,7 @@ async def teams_group(ctx, *, team_format: str = None):
         
         # Create response embed showing the proposed teams
         embed = discord.Embed(
-            title=f"🎯 {team_type} Preview",
+            title=f"* {team_type} Preview",
             description=f"Generated {len(teams)} teams from {len(members)} members\n**Click the button below to create channels and move players!**",
             color=0x0099ff if not balanced else 0x00aa99
         )
@@ -937,7 +941,7 @@ async def teams_group(ctx, *, team_format: str = None):
             )
         
         embed.set_footer(text="Teams are ready! Click the button to create channels and move players.")
-        
+        #embed.set_footer(text=copyright_notice)
         # Create the view with the team creation button
         view = TeamCreationView(teams, team_stats, guild, balanced)
         await ctx.send(embed=embed, view=view)
@@ -949,16 +953,16 @@ async def teams_group(ctx, *, team_format: str = None):
     except Exception as e:
         await ctx.send(f"❌ An error occurred: {str(e)}")
 
-@teams_group.command(name='skill', help='Set or view player skill level (1-20)')
-async def skill_command(ctx, member: Optional[discord.Member] = None, skill_level: Optional[int] = None):
-    """Set or view player skill level"""
+@teams_group.command(name='skill', help='Set or view player skill level (1-20), or use + and - to increment/decrement')
+async def skill_command(ctx, member: Optional[discord.Member] = None, skill_change = None):
+    """Set or view player skill level, with support for +/- increment/decrement"""
     
     # If no member specified, use the command author
     if member is None:
         member = ctx.author
     
-    # If no skill level specified, show current skill
-    if skill_level is None:
+    # If no skill change specified, show current skill
+    if skill_change is None:
         current_skill = player_db.get_player_skill(member.id)
         embed = discord.Embed(
             title="📊 Player Skill Level",
@@ -968,25 +972,64 @@ async def skill_command(ctx, member: Optional[discord.Member] = None, skill_leve
         await ctx.send(embed=embed)
         return
     
-    # Set skill level
-    if not 1 <= skill_level <= 20:
-        await ctx.send("❌ Skill level must be between 1 and 20!")
-        return
-    
-    # Check if trying to set someone else's skill level
+    # Check if trying to modify someone else's skill level
     if member != ctx.author and not ctx.author.guild_permissions.manage_roles:
-        await ctx.send("❌ You can only set your own skill level, or you need 'Manage Roles' permission to set others!")
+        await ctx.send("❌ You can only modify your own skill level, or you need 'Manage Roles' permission to modify others!")
         return
     
-    success = player_db.set_player_skill(member.id, member.display_name, skill_level)
+    # Get current skill level
+    current_skill = player_db.get_player_skill(member.id)
+    
+    # Handle increment/decrement operations
+    if skill_change == "+":
+        new_skill = current_skill + 1
+        if new_skill > 20:
+            await ctx.send(f"❌ Cannot increment! {member.display_name} is already at maximum skill level (20).")
+            return
+        operation = "incremented"
+    elif skill_change == "-":
+        new_skill = current_skill - 1
+        if new_skill < 1:
+            await ctx.send(f"❌ Cannot decrement! {member.display_name} is already at minimum skill level (1).")
+            return
+        operation = "decremented"
+    else:
+        # Handle direct skill level setting (convert to int)
+        try:
+            new_skill = int(skill_change)
+            if not 1 <= new_skill <= 20:
+                await ctx.send("❌ Skill level must be between 1 and 20!")
+                return
+            operation = "set"
+        except ValueError:
+            await ctx.send("❌ Invalid input! Use a number (1-20), '+' to increment, or '-' to decrement.")
+            return
+    
+    # Update the skill level
+    success = player_db.set_player_skill(member.id, member.display_name, new_skill)
     
     if success:
-        embed = discord.Embed(
-            title="✅ Skill Level Updated",
-            description=f"Set {member.display_name}'s skill level to **{skill_level}/20**",
-            color=0x00ff00
-        )
+        if operation == "incremented":
+            embed = discord.Embed(
+                title="📈 Skill Level Incremented",
+                description=f"{member.display_name}'s skill level: **{current_skill}** → **{new_skill}** (+1)",
+                color=0x00ff00
+            )
+        elif operation == "decremented":
+            embed = discord.Embed(
+                title="📉 Skill Level Decremented",
+                description=f"{member.display_name}'s skill level: **{current_skill}** → **{new_skill}** (-1)",
+                color=0xff9900
+            )
+        else:  # operation == "set"
+            embed = discord.Embed(
+                title="✅ Skill Level Updated",
+                description=f"Set {member.display_name}'s skill level to **{new_skill}/20**",
+                color=0x00ff00
+            )
+        embed.set_footer(text=copyright_notice)
         await ctx.send(embed=embed)
+        
     else:
         await ctx.send("❌ Failed to update skill level!")
 
@@ -1045,7 +1088,7 @@ async def players_command(ctx):
         description=f"Total players: {len(players)}",
         color=0x0099ff
     )
-    
+    embed.set_footer(text=copyright_notice)
     # Group players by skill level for better organization
     skill_groups = {}
     for player_data in players:
@@ -1191,7 +1234,9 @@ async def team_help_subcommand(ctx):
         value=(
             "`!teams skill` - View your skill level\n"
             "`!teams skill <level>` - Set your skill level (1-20)\n"
-            "`!teams skill @user <level>` - Set user's skill level (requires Manage Roles)\n"
+            "`!teams skill +` - Increment your skill level by 1\n"
+            "`!teams skill -` - Decrement your skill level by 1\n"
+            "`!teams skill @user <level/+/->` - Modify user's skill level (requires Manage Roles)\n"
             "`!teams region` - View your region\n"
             "`!teams region <CODE>` - Set your region (e.g., CA, US, UK)\n"
             "`!teams region @user <CODE>` - Set user's region (requires Manage Roles)\n"
@@ -1262,7 +1307,7 @@ async def team_help_subcommand(ctx):
         inline=False
     )
     
-    embed.set_footer(text="Player data is stored in SQLite database")
+    embed.set_footer(text=copyright_notice)
     await ctx.send(embed=embed)
 
 @teams_group.error
@@ -1276,6 +1321,7 @@ async def teams_error(ctx, error):
 # Run the bot
 if __name__ == "__main__":
     print("Starting Enhanced Discord Team Generator Bot...")
+    print(copyright_notice)
     print("Features:")
     print("- SQLite database for player skill storage")
     print("- Random team generation")
@@ -1286,11 +1332,7 @@ if __name__ == "__main__":
     print()
     print("Make sure to:")
     print("1. Set your DISCORD_TOKEN environment variable")
-    print("2. Invite the bot with proper permissions:")
-    print("   - Manage Channels")
-    print("   - Move Members") 
-    print("   - Send Messages")
-    print("   - Connect to Voice Channels")
+
     
     # Replace with your bot token
     bot.run(os.environ["DISCORD_TOKEN"])
