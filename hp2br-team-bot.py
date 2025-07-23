@@ -113,7 +113,7 @@ class CleanupView(discord.ui.View):
 
 class TeamGameView(discord.ui.View):
     def __init__(self, created_channels: List[discord.VoiceChannel], guild: discord.Guild):
-        super().__init__(timeout=2700)  # 45 min timeout for games
+        super().__init__(timeout=3600)  # 1 hour timeout for games
         self.created_channels = created_channels
         self.guild = guild
         
@@ -343,7 +343,12 @@ class TeamCreationView(discord.ui.View):
                 team_gen.created_channels[self.guild.id] = []
             team_gen.created_channels[self.guild.id].extend([ch.id for ch in created_channels])
             
-      
+            # Create success embed
+            embed = discord.Embed(
+                title="✅ Teams Created Successfully!",
+                description=f"Created {len(self.teams)} team channels and moved all players!",
+                color=0x00ff00
+            )
             
             for i, (team, channel) in enumerate(zip(self.teams, created_channels), 1):
                 team_names = [f"• {member.display_name}" for member in team]
@@ -353,29 +358,22 @@ class TeamCreationView(discord.ui.View):
                     inline=True
                 )
             
-
-            # Create success embed
-            embed = discord.Embed(
-                title="✅ Teams Created Successfully!",
-                description=f"Created {len(self.teams)} team channels and moved all players!",
-                color=0x00ff00
-            )
             embed.set_footer(text="All members have been moved to their team channels! Use individual team buttons or 'End Game All' when finished.")
             
-            # # Add note if there are more than 5 teams (button limit)
-            # if len(self.teams) > 5:
-            #     embed.add_field(
-            #         name="⚠️ Note",
-            #         value=f"Only showing End for first 5 teams.",
-            #         inline=False
-            #     )
+            # Add note if there are more than 5 teams (button limit)
+            if len(self.teams) > 5:
+                embed.add_field(
+                    name="⚠️ Note",
+                    value=f"Only showing End buttons for first 5 teams. Teams 6-{len(self.teams)} can be ended with 'End Game All' or manual cleanup.",
+                    inline=False
+                )
             
             # Disable the create button immediately
             button.disabled = True
             await interaction.response.edit_message(embed=embed, view=self)
             
             # Wait 5 seconds before showing End Game controls
-            time.sleep(5)
+            await asyncio.sleep(5)
             
             # Create new view with End Game button after delay
             new_view = TeamGameView(self.created_channels, self.guild)
@@ -420,7 +418,7 @@ class TeamCreationView(discord.ui.View):
                         if len(self.teams) > 5:
                             embed.add_field(
                                 name="⚠️ Note",
-                                value=f"Only showing End buttons for first 5 teams. ",
+                                value=f"Only showing End buttons for first 5 teams. Teams 6-{len(self.teams)} can be ended with 'End Game All' or manual cleanup.",
                                 inline=False
                             )
                         
@@ -622,6 +620,49 @@ class TeamGenerator:
         
         return created_channels
 
+# async def play_sound_in_waiting_room(guild: discord.Guild):
+#     """Play ggs.mp3 sound file in the Waiting Room channel"""
+#     try:
+#         # Find the Waiting Room voice channel
+#         waiting_room = discord.utils.get(guild.voice_channels, name="Waiting Room")
+        
+#         if not waiting_room:
+#             print("Warning: Could not find 'Waiting Room' voice channel for playing sound")
+#             return
+        
+#         # Check if the ggs.mp3 file exists
+#         sound_file = "ggs.mp3"
+#         if not os.path.exists(sound_file):
+#             print(f"Warning: Sound file '{sound_file}' not found. Please add ggs.mp3 to the bot directory.")
+#             return
+        
+#         # Check if bot is already connected to a voice channel in this guild
+#         if guild.voice_client is not None:
+#             # If already connected, move to Waiting Room
+#             await guild.voice_client.move_to(waiting_room)
+#         else:
+#             # Connect to the Waiting Room
+#             voice_client = await waiting_room.connect()
+        
+#         # Play the sound file
+#         if guild.voice_client and not guild.voice_client.is_playing():
+#             audio_source = discord.FFmpegPCMAudio(sound_file)
+#             guild.voice_client.play(audio_source)
+            
+#             # Wait for the audio to finish playing
+#             while guild.voice_client.is_playing():
+#                 await asyncio.sleep(0.5)
+            
+#             # Disconnect after playing
+#             await guild.voice_client.disconnect()
+            
+#         print(f"Successfully played {sound_file} in Waiting Room")
+        
+#     except discord.errors.ClientException as e:
+#         print(f"Discord client error while playing sound: {e}")
+#     except Exception as e:
+#         print(f"Error playing sound in Waiting Room: {e}")
+
 # Initialize global instances
 team_gen = TeamGenerator()
 player_db = PlayerDatabase()
@@ -631,12 +672,19 @@ async def on_ready():
     print(f'{bot.user} has connected to Discord!')
     print(f'Bot is ready and connected to {len(bot.guilds)} guilds')
     print(f'Player database initialized at: {player_db.db_path}')
+    
+    # Check if ggs.mp3 exists
+    # if os.path.exists('ggs.mp3'):
+    #     print('✅ ggs.mp3 sound file found')
+    # else:
+    #     print('⚠️ ggs.mp3 sound file not found - sound functionality will be disabled')
 
 async def create_debug_channel(ctx):
-    """Create a debug voice channel and move the caller to it"""
+    """Create a debug voice channel, move the caller to it, and play ggs.mp3 in Waiting Room"""
     guild = ctx.guild
     author = ctx.author
-    
+    #await play_sound_in_waiting_room(guild)
+    time.sleep(5)
     try:
         # Check if debug channel already exists first
         existing_debug = discord.utils.get(guild.voice_channels, name="HP2BR-Debug")
@@ -645,6 +693,8 @@ async def create_debug_channel(ctx):
             if author.voice:  # Check if user is still in a voice channel
                 await author.move_to(existing_debug)
             await ctx.send(f"✅ Moved you to existing debug channel: {existing_debug.mention}")
+            # Still play sound even if debug channel already exists
+            #await play_sound_in_waiting_room(guild)
             return
         
         # Find or create a category for team channels
@@ -678,10 +728,13 @@ async def create_debug_channel(ctx):
             team_gen.created_channels[guild.id] = []
         team_gen.created_channels[guild.id].append(debug_channel.id)
         
+        # Play sound in Waiting Room
+        #await play_sound_in_waiting_room(guild)
+        
         # Send confirmation with cleanup button
         embed = discord.Embed(
             title="🐛 Debug Channel Created!",
-            description=f"Created debug channel and moved {author.display_name} to it.",
+            description=f"Created debug channel and moved {author.display_name} to it.\n🎵 Playing ggs.mp3 in Waiting Room!",
             color=0xffaa00
         )
         embed.add_field(
@@ -1050,7 +1103,7 @@ async def teams_error(ctx, error):
 
 # Run the bot
 if __name__ == "__main__":
-    print("Starting Enhanced Discord Team Generator Bot... v0.0.1")
+    print("Starting Enhanced Discord Team Generator Bot...")
     print("Features:")
     print("- SQLite database for player skill storage")
     print("- Random team generation")
@@ -1061,8 +1114,10 @@ if __name__ == "__main__":
     print("Make sure to:")
     print("1. Set your DISCORD_TOKEN environment variable")
     print("2. Invite the bot with proper permissions:")
-    print("3. Activate using !teams command in discord")
-  
+    print("   - Manage Channels")
+    print("   - Move Members") 
+    print("   - Send Messages")
+    print("   - Connect to Voice Channels")
     
     # Replace with your bot token
     bot.run(os.environ["DISCORD_TOKEN"])
