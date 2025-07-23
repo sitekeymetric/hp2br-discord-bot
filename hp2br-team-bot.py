@@ -31,46 +31,89 @@ class PlayerDatabase:
                     user_id INTEGER PRIMARY KEY,
                     username TEXT NOT NULL,
                     skill_level INTEGER DEFAULT 1,
+                    region TEXT DEFAULT NULL,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
+            
+            # Add region column if it doesn't exist (for existing databases)
+            cursor.execute("PRAGMA table_info(players)")
+            columns = [column[1] for column in cursor.fetchall()]
+            if 'region' not in columns:
+                cursor.execute('ALTER TABLE players ADD COLUMN region TEXT DEFAULT NULL')
+            
             conn.commit()
     
-    def add_or_update_player(self, user_id: int, username: str, skill_level: int = 1):
-        """Add a new player or update existing player's skill level"""
+    def add_or_update_player(self, user_id: int, username: str, skill_level: int = 1, region: str = None):
+        """Add a new player or update existing player's skill level and region"""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute('''
-                INSERT OR REPLACE INTO players (user_id, username, skill_level, updated_at)
-                VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-            ''', (user_id, username, skill_level))
+                INSERT OR REPLACE INTO players (user_id, username, skill_level, region, updated_at)
+                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ''', (user_id, username, skill_level, region))
             conn.commit()
     
-    def get_player(self, user_id: int) -> Optional[Tuple[int, str, int]]:
+    def get_player(self, user_id: int) -> Optional[Tuple[int, str, int, str]]:
         """Get player information by user ID"""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
-            cursor.execute('SELECT user_id, username, skill_level FROM players WHERE user_id = ?', (user_id,))
-            return cursor.fetchone()
+            # Handle case where region column might not exist in older databases
+            try:
+                cursor.execute('SELECT user_id, username, skill_level, region FROM players WHERE user_id = ?', (user_id,))
+                return cursor.fetchone()
+            except sqlite3.OperationalError:
+                # Fallback for databases without region column
+                cursor.execute('SELECT user_id, username, skill_level FROM players WHERE user_id = ?', (user_id,))
+                result = cursor.fetchone()
+                if result:
+                    return (result[0], result[1], result[2], None)  # Add None for region
+                return None
     
-    def get_all_players(self) -> List[Tuple[int, str, int]]:
+    def get_all_players(self) -> List[Tuple[int, str, int, str]]:
         """Get all players from database"""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
-            cursor.execute('SELECT user_id, username, skill_level FROM players ORDER BY username')
-            return cursor.fetchall()
+            # Handle case where region column might not exist in older databases
+            try:
+                cursor.execute('SELECT user_id, username, skill_level, region FROM players ORDER BY username')
+                return cursor.fetchall()
+            except sqlite3.OperationalError:
+                # Fallback for databases without region column
+                cursor.execute('SELECT user_id, username, skill_level FROM players ORDER BY username')
+                results = cursor.fetchall()
+                # Add None for region to maintain tuple structure
+                return [(user_id, username, skill_level, None) for user_id, username, skill_level in results]
     
     def get_player_skill(self, user_id: int) -> int:
         """Get player's skill level, return 1 if not found"""
         player = self.get_player(user_id)
         return player[2] if player else 1
     
+    def get_player_region(self, user_id: int) -> str:
+        """Get player's region, return None if not found"""
+        player = self.get_player(user_id)
+        if player and len(player) > 3:
+            return player[3]
+        return None
+    
     def set_player_skill(self, user_id: int, username: str, skill_level: int) -> bool:
-        """Set player's skill level (1-10)"""
-        if not 1 <= skill_level <= 10:
+        """Set player's skill level (1-20)"""
+        if not 1 <= skill_level <= 20:
             return False
-        self.add_or_update_player(user_id, username, skill_level)
+        player = self.get_player(user_id)
+        current_region = None
+        if player and len(player) > 3:
+            current_region = player[3]
+        self.add_or_update_player(user_id, username, skill_level, current_region)
+        return True
+    
+    def set_player_region(self, user_id: int, username: str, region: str) -> bool:
+        """Set player's region"""
+        player = self.get_player(user_id)
+        current_skill = player[2] if player else 1
+        self.add_or_update_player(user_id, username, current_skill, region.upper() if region else None)
         return True
 
 class CleanupView(discord.ui.View):
@@ -309,7 +352,7 @@ class TeamGameView(discord.ui.View):
             )
 
 class TeamCreationView(discord.ui.View):
-    def __init__(self, teams: List[List[discord.Member]], team_stats: List[Tuple[float, List[int]]], 
+    def __init__(self, teams: List[List[discord.Member]], team_stats: List[Tuple[float, List[int], List[str]]], 
                  guild: discord.Guild, balanced: bool):
         super().__init__(timeout=900)  # 15 minutes timeout (Discord's maximum)
         self.teams = teams
@@ -391,66 +434,6 @@ class TeamCreationView(discord.ui.View):
                 # If original message was deleted, send a new one
                 await interaction.followup.send(embed=embed, view=new_view)
             
-        except discord.Forbidden:
-            await interaction.response.send_message(
-                "❌ I don't have permission to create channels or move members!", 
-                ephemeral=True
-            )
-        except discord.HTTPException as e:
-            if "Parent_id: Category does not exist" in str(e):
-                await interaction.response.send_message(
-                    "❌ Category creation failed. Retrying without category...", 
-                    ephemeral=True
-                )
-                # Retry without category
-                try:
-                    created_channels = await team_gen.create_team_channels(self.guild, None, self.teams)
-                    if created_channels:
-                        self.created_channels = created_channels
-                        embed = discord.Embed(
-                            title="✅ Teams Created (No Category)",
-                            description=f"Created {len(self.teams)} team channels without category!",
-                            color=0x00ff00
-                        )
-                        embed.set_footer(text="Teams created successfully! Use individual team buttons or 'End Game All' when finished.")
-                        
-                        # Add note if there are more than 5 teams (button limit)
-                        if len(self.teams) > 5:
-                            embed.add_field(
-                                name="⚠️ Note",
-                                value=f"Only showing End buttons for first 5 teams. Teams 6-{len(self.teams)} can be ended with 'End Game All' or manual cleanup.",
-                                inline=False
-                            )
-                        
-                        # Disable the create button immediately
-                        button.disabled = True
-                        await interaction.edit_original_response(embed=embed, view=self)
-                        
-                        # Wait 5 seconds before showing End Game controls
-                        await asyncio.sleep(5)
-                        
-                        # Create new view with End Game button after delay
-                        new_view = TeamGameView(self.created_channels, self.guild)
-                        
-                        # Update the message with End Game controls
-                        embed.add_field(
-                            name="🎮 Game Controls Available",
-                            value="You can now end individual teams or the entire game using the buttons below.",
-                            inline=False
-                        )
-                        
-                        try:
-                            await interaction.edit_original_response(embed=embed, view=new_view)
-                        except discord.NotFound:
-                            # If original message was deleted, send a new one
-                            await interaction.followup.send(embed=embed, view=new_view)
-                except Exception as retry_e:
-                    await interaction.followup.send(f"❌ Retry failed: {str(retry_e)}", ephemeral=True)
-            else:
-                await interaction.response.send_message(
-                    f"❌ Discord API error: {str(e)}", 
-                    ephemeral=True
-                )
         except Exception as e:
             await interaction.response.send_message(
                 f"❌ An error occurred while creating teams: {str(e)}", 
@@ -462,21 +445,30 @@ class TeamGenerator:
         self.created_channels = {}  # Guild ID -> List of created channel IDs
         self.db = PlayerDatabase()
     
-    def parse_team_format(self, format_str: str) -> Tuple[List[int], bool]:
-        """Parse team format like '4:4:2' or '3:3:3 balanced' into ([4, 4, 2], balanced_flag)"""
+    def parse_team_format(self, format_str: str) -> Tuple[List[int], bool, Optional[str]]:
+        """Parse team format like '4:4:2', '3:3:3 balanced', or '4:4:2 region CA' into (team_sizes, balanced_flag, region)"""
         try:
-            # Check for 'balanced' keyword
+            # Check for 'balanced' and 'region' keywords
             balanced = 'balanced' in format_str.lower()
+            region = None
             
-            # Remove 'balanced' keyword and clean up the format string
-            clean_format = format_str.lower().replace('balanced', '').strip()
+            # Look for region keyword and extract region code
+            region_match = re.search(r'region\s+([A-Za-z]{2,3})', format_str, re.IGNORECASE)
+            if region_match:
+                region = region_match.group(1).upper()
+            
+            # Remove keywords and clean up the format string
+            clean_format = format_str.lower()
+            clean_format = clean_format.replace('balanced', '').strip()
+            if region_match:
+                clean_format = clean_format.replace(region_match.group(0).lower(), '').strip()
             
             teams = [int(x) for x in clean_format.split(':')]
             if any(team <= 0 for team in teams):
                 raise ValueError("Team sizes must be positive")
-            return teams, balanced
+            return teams, balanced, region
         except ValueError:
-            raise ValueError("Invalid format. Use format like '4:4:2' or '4:4:2 balanced' for team sizes")
+            raise ValueError("Invalid format. Use format like '4:4:2', '4:4:2 balanced', or '4:4:2 region CA' for team sizes")
     
     def create_random_teams(self, members: List[discord.Member], team_sizes: List[int]) -> List[List[discord.Member]]:
         """Create random teams without considering skill levels"""
@@ -495,6 +487,68 @@ class TeamGenerator:
             team = shuffled_members[current_index:current_index + size]
             teams.append(team)
             current_index += size
+        
+        return teams
+    
+    def create_region_teams(self, members: List[discord.Member], team_sizes: List[int], required_region: str) -> List[List[discord.Member]]:
+        """Create teams ensuring each team has at least one player from the required region"""
+        total_needed = sum(team_sizes)
+        if len(members) < total_needed:
+            raise ValueError(f"Not enough members! Need {total_needed}, but only {len(members)} available")
+        
+        # Ensure all players are in database
+        for member in members:
+            if not self.db.get_player(member.id):
+                self.db.add_or_update_player(member.id, member.display_name, 1)
+        
+        # Separate members by region
+        region_members = []
+        other_members = []
+        print(f"DEBUG: Number of Members '{members}'")
+        print(f"DEBUG: Looking for region '{required_region}'")  # Debug info
+        
+        #for member in members[:total_needed]:
+        for member in members:
+            player_region = self.db.get_player_region(member.id)
+            print(f"DEBUG: {member.display_name} has region: '{player_region}'")  # Debug info
+            if player_region == required_region:
+                region_members.append(member)
+                print(f"DEBUG: Added {member.display_name} to region_members")  # Debug info
+            else:
+                other_members.append(member)
+        
+        num_teams = len(team_sizes)
+        
+        print(f"DEBUG: Found {len(region_members)} players from region {required_region}, need {num_teams}")  # Debug info
+        
+        # Check if we have enough region members
+        if len(region_members) < num_teams:
+            raise ValueError(f"Not enough players from region {required_region}! Need at least {num_teams}, but only {len(region_members)} available")
+        
+        # Shuffle both lists
+        random.shuffle(region_members)
+        random.shuffle(other_members)
+        
+        # Initialize teams
+        teams = [[] for _ in range(num_teams)]
+        
+        # Place one region member in each team first
+        for i in range(num_teams):
+            teams[i].append(region_members[i])
+        
+        # Add remaining region members to other_members
+        remaining_region_members = region_members[num_teams:]
+        all_remaining = other_members + remaining_region_members
+        random.shuffle(all_remaining)
+        
+        # Fill the remaining spots
+        member_index = 0
+        for team_idx, size in enumerate(team_sizes):
+            slots_needed = size - 1  # -1 because we already placed one region member
+            for _ in range(slots_needed):
+                if member_index < len(all_remaining):
+                    teams[team_idx].append(all_remaining[member_index])
+                    member_index += 1
         
         return teams
     
@@ -555,17 +609,108 @@ class TeamGenerator:
         
         return best_teams if best_teams else self.create_random_teams(members, team_sizes)
     
-    def calculate_team_stats(self, teams: List[List[discord.Member]]) -> List[Tuple[float, List[int]]]:
-        """Calculate team statistics (average skill, individual skills)"""
+    def create_balanced_region_teams(self, members: List[discord.Member], team_sizes: List[int], required_region: str) -> List[List[discord.Member]]:
+        """Create balanced teams ensuring each team has at least one player from the required region"""
+        total_needed = sum(team_sizes)
+        if len(members) < total_needed:
+            raise ValueError(f"Not enough members! Need {total_needed}, but only {len(members)} available")
+        
+        # Ensure all players are in database
+        for member in members:
+            if not self.db.get_player(member.id):
+                self.db.add_or_update_player(member.id, member.display_name, 1)
+        
+        # Separate members by region with skills
+        region_members = []
+        other_members = []
+        
+        for member in members[:total_needed]:
+            skill = self.db.get_player_skill(member.id)
+            player_region = self.db.get_player_region(member.id)
+            if player_region == required_region:
+                region_members.append((member, skill))
+            else:
+                other_members.append((member, skill))
+        
+        num_teams = len(team_sizes)
+        
+        # Check if we have enough region members
+        if len(region_members) < num_teams:
+            raise ValueError(f"Not enough players from region {required_region}! Need at least {num_teams}, but only {len(region_members)} available")
+        
+        # Try to create balanced teams
+        best_teams = None
+        best_balance_score = float('inf')
+        
+        for attempt in range(1000):
+            # Shuffle region members and assign one to each team
+            shuffled_region = region_members.copy()
+            random.shuffle(shuffled_region)
+            
+            teams = [[] for _ in range(num_teams)]
+            team_skills = [[] for _ in range(num_teams)]
+            
+            # Place one region member in each team
+            for i in range(num_teams):
+                member, skill = shuffled_region[i]
+                teams[i].append(member)
+                team_skills[i].append(skill)
+            
+            # Add remaining region members to other_members pool
+            remaining_region = shuffled_region[num_teams:]
+            all_remaining = other_members + remaining_region
+            random.shuffle(all_remaining)
+            
+            # Fill remaining spots trying to balance skills
+            member_index = 0
+            for team_idx, size in enumerate(team_sizes):
+                slots_needed = size - 1  # -1 because we already placed one region member
+                for _ in range(slots_needed):
+                    if member_index < len(all_remaining):
+                        member, skill = all_remaining[member_index]
+                        teams[team_idx].append(member)
+                        team_skills[team_idx].append(skill)
+                        member_index += 1
+            
+            # Calculate balance score
+            team_averages = []
+            for skills in team_skills:
+                if skills:
+                    team_averages.append(sum(skills) / len(skills))
+                else:
+                    team_averages.append(1.0)
+            
+            # Calculate balance score (lower is better)
+            if len(team_averages) > 1:
+                balance_score = max(team_averages) - min(team_averages)
+            else:
+                balance_score = 0
+            
+            # Keep the best balanced teams
+            if balance_score < best_balance_score:
+                best_balance_score = balance_score
+                best_teams = teams.copy()
+                
+                # If we found good balance, stop searching
+                if balance_score < 0.2:
+                    break
+        
+        return best_teams if best_teams else self.create_region_teams(members, team_sizes, required_region)
+    
+    def calculate_team_stats(self, teams: List[List[discord.Member]]) -> List[Tuple[float, List[int], List[str]]]:
+        """Calculate team statistics (average skill, individual skills, regions)"""
         team_stats = []
         for team in teams:
             skills = []
+            regions = []
             for member in team:
                 skill = self.db.get_player_skill(member.id)
+                region = self.db.get_player_region(member.id) or "None"
                 skills.append(skill)
+                regions.append(region)
             
             avg_skill = sum(skills) / len(skills) if skills else 1.0
-            team_stats.append((avg_skill, skills))
+            team_stats.append((avg_skill, skills, regions))
         
         return team_stats
     
@@ -620,49 +765,6 @@ class TeamGenerator:
         
         return created_channels
 
-# async def play_sound_in_waiting_room(guild: discord.Guild):
-#     """Play ggs.mp3 sound file in the Waiting Room channel"""
-#     try:
-#         # Find the Waiting Room voice channel
-#         waiting_room = discord.utils.get(guild.voice_channels, name="Waiting Room")
-        
-#         if not waiting_room:
-#             print("Warning: Could not find 'Waiting Room' voice channel for playing sound")
-#             return
-        
-#         # Check if the ggs.mp3 file exists
-#         sound_file = "ggs.mp3"
-#         if not os.path.exists(sound_file):
-#             print(f"Warning: Sound file '{sound_file}' not found. Please add ggs.mp3 to the bot directory.")
-#             return
-        
-#         # Check if bot is already connected to a voice channel in this guild
-#         if guild.voice_client is not None:
-#             # If already connected, move to Waiting Room
-#             await guild.voice_client.move_to(waiting_room)
-#         else:
-#             # Connect to the Waiting Room
-#             voice_client = await waiting_room.connect()
-        
-#         # Play the sound file
-#         if guild.voice_client and not guild.voice_client.is_playing():
-#             audio_source = discord.FFmpegPCMAudio(sound_file)
-#             guild.voice_client.play(audio_source)
-            
-#             # Wait for the audio to finish playing
-#             while guild.voice_client.is_playing():
-#                 await asyncio.sleep(0.5)
-            
-#             # Disconnect after playing
-#             await guild.voice_client.disconnect()
-            
-#         print(f"Successfully played {sound_file} in Waiting Room")
-        
-#     except discord.errors.ClientException as e:
-#         print(f"Discord client error while playing sound: {e}")
-#     except Exception as e:
-#         print(f"Error playing sound in Waiting Room: {e}")
-
 # Initialize global instances
 team_gen = TeamGenerator()
 player_db = PlayerDatabase()
@@ -672,18 +774,11 @@ async def on_ready():
     print(f'{bot.user} has connected to Discord!')
     print(f'Bot is ready and connected to {len(bot.guilds)} guilds')
     print(f'Player database initialized at: {player_db.db_path}')
-    
-    # Check if ggs.mp3 exists
-    # if os.path.exists('ggs.mp3'):
-    #     print('✅ ggs.mp3 sound file found')
-    # else:
-    #     print('⚠️ ggs.mp3 sound file not found - sound functionality will be disabled')
 
 async def create_debug_channel(ctx):
-    """Create a debug voice channel, move the caller to it, and play ggs.mp3 in Waiting Room"""
+    """Create a debug voice channel, move the caller to it"""
     guild = ctx.guild
     author = ctx.author
-    #await play_sound_in_waiting_room(guild)
     time.sleep(5)
     try:
         # Check if debug channel already exists first
@@ -693,8 +788,6 @@ async def create_debug_channel(ctx):
             if author.voice:  # Check if user is still in a voice channel
                 await author.move_to(existing_debug)
             await ctx.send(f"✅ Moved you to existing debug channel: {existing_debug.mention}")
-            # Still play sound even if debug channel already exists
-            #await play_sound_in_waiting_room(guild)
             return
         
         # Find or create a category for team channels
@@ -728,13 +821,10 @@ async def create_debug_channel(ctx):
             team_gen.created_channels[guild.id] = []
         team_gen.created_channels[guild.id].append(debug_channel.id)
         
-        # Play sound in Waiting Room
-        #await play_sound_in_waiting_room(guild)
-        
         # Send confirmation with cleanup button
         embed = discord.Embed(
             title="🐛 Debug Channel Created!",
-            description=f"Created debug channel and moved {author.display_name} to it.\n🎵 Playing ggs.mp3 in Waiting Room!",
+            description=f"Created debug channel and moved {author.display_name} to it.",
             color=0xffaa00
         )
         embed.add_field(
@@ -766,7 +856,7 @@ async def teams_group(ctx, *, team_format: str = None):
     
     # Check if format is provided
     if not team_format:
-        await ctx.send("❌ Please specify team format! Example: `!teams 4:4:2` or `!teams 3:3:3 balanced`")
+        await ctx.send("❌ Please specify team format! Example: `!teams 4:4:2`, `!teams 3:3:3 balanced`, or `!teams 4:4:2 region CA`")
         return
     
     # Check if user is in a voice channel for team generation
@@ -786,10 +876,16 @@ async def teams_group(ctx, *, team_format: str = None):
     
     try:
         # Parse team format
-        team_sizes, balanced = team_gen.parse_team_format(team_format)
+        team_sizes, balanced, region = team_gen.parse_team_format(team_format)
         
-        # Create teams (balanced or random)
-        if balanced:
+        # Create teams based on options
+        if region and balanced:
+            teams = team_gen.create_balanced_region_teams(members, team_sizes, region)
+            team_type = f"Balanced Teams (Region: {region})"
+        elif region:
+            teams = team_gen.create_region_teams(members, team_sizes, region)
+            team_type = f"Random Teams (Region: {region})"
+        elif balanced:
             teams = team_gen.create_balanced_teams(members, team_sizes)
             team_type = "Balanced Teams"
         else:
@@ -806,15 +902,24 @@ async def teams_group(ctx, *, team_format: str = None):
             color=0x0099ff if not balanced else 0x00aa99
         )
         
-        for i, (team, (avg_skill, skills)) in enumerate(zip(teams, team_stats), 1):
+        for i, (team, (avg_skill, skills, regions)) in enumerate(zip(teams, team_stats), 1):
             team_names = []
             for j, member in enumerate(team):
                 skill = skills[j]
-                team_names.append(f"• {member.display_name} (Skill: {skill})")
+                member_region = regions[j]
+                if region:  # Show regions when filtering by region
+                    team_names.append(f"• {member.display_name} (Skill: {skill}, Region: {member_region})")
+                else:
+                    team_names.append(f"• {member.display_name} (Skill: {skill})")
             
             field_value = "\n".join(team_names)
             if balanced:
                 field_value += f"\n**Average Skill: {avg_skill:.1f}**"
+            
+            # Show region distribution if region filtering was used
+            if region:
+                region_count = sum(1 for r in regions if r == region)
+                field_value += f"\n**{region} Players: {region_count}/{len(team)}**"
             
             embed.add_field(
                 name=f"Team {i} ({len(team)} members)",
@@ -844,7 +949,7 @@ async def teams_group(ctx, *, team_format: str = None):
     except Exception as e:
         await ctx.send(f"❌ An error occurred: {str(e)}")
 
-@teams_group.command(name='skill', help='Set or view player skill level (1-10)')
+@teams_group.command(name='skill', help='Set or view player skill level (1-20)')
 async def skill_command(ctx, member: Optional[discord.Member] = None, skill_level: Optional[int] = None):
     """Set or view player skill level"""
     
@@ -857,15 +962,15 @@ async def skill_command(ctx, member: Optional[discord.Member] = None, skill_leve
         current_skill = player_db.get_player_skill(member.id)
         embed = discord.Embed(
             title="📊 Player Skill Level",
-            description=f"{member.display_name}'s current skill level: **{current_skill}/10**",
+            description=f"{member.display_name}'s current skill level: **{current_skill}/20**",
             color=0x0099ff
         )
         await ctx.send(embed=embed)
         return
     
     # Set skill level
-    if not 1 <= skill_level <= 10:
-        await ctx.send("❌ Skill level must be between 1 and 10!")
+    if not 1 <= skill_level <= 20:
+        await ctx.send("❌ Skill level must be between 1 and 20!")
         return
     
     # Check if trying to set someone else's skill level
@@ -878,16 +983,57 @@ async def skill_command(ctx, member: Optional[discord.Member] = None, skill_leve
     if success:
         embed = discord.Embed(
             title="✅ Skill Level Updated",
-            description=f"Set {member.display_name}'s skill level to **{skill_level}/10**",
+            description=f"Set {member.display_name}'s skill level to **{skill_level}/20**",
             color=0x00ff00
         )
         await ctx.send(embed=embed)
     else:
         await ctx.send("❌ Failed to update skill level!")
 
-@teams_group.command(name='players', help='List all players and their skill levels')
+@teams_group.command(name='region', help='Set or view player region')
+async def region_command(ctx, member: Optional[discord.Member] = None, region: Optional[str] = None):
+    """Set or view player region"""
+    
+    # If no member specified, use the command author
+    if member is None:
+        member = ctx.author
+    
+    # If no region specified, show current region
+    if region is None:
+        current_region = player_db.get_player_region(member.id) or "Not set"
+        embed = discord.Embed(
+            title="🌍 Player Region",
+            description=f"{member.display_name}'s current region: **{current_region}**",
+            color=0x0099ff
+        )
+        await ctx.send(embed=embed)
+        return
+    
+    # Check if trying to set someone else's region
+    if member != ctx.author and not ctx.author.guild_permissions.manage_roles:
+        await ctx.send("❌ You can only set your own region, or you need 'Manage Roles' permission to set others!")
+        return
+    
+    # Validate region code (2-3 characters)
+    if len(region) < 2 or len(region) > 3:
+        await ctx.send("❌ Region code must be 2-3 characters (e.g., CA, US, UK, AUS)!")
+        return
+    
+    success = player_db.set_player_region(member.id, member.display_name, region)
+    
+    if success:
+        embed = discord.Embed(
+            title="✅ Region Updated",
+            description=f"Set {member.display_name}'s region to **{region.upper()}**",
+            color=0x00ff00
+        )
+        await ctx.send(embed=embed)
+    else:
+        await ctx.send("❌ Failed to update region!")
+
+@teams_group.command(name='players', help='List all players and their skill levels/regions')
 async def players_command(ctx):
-    """List all players in the database with their skill levels"""
+    """List all players in the database with their skill levels and regions"""
     players = player_db.get_all_players()
     
     if not players:
@@ -895,17 +1041,25 @@ async def players_command(ctx):
         return
     
     embed = discord.Embed(
-        title="📋 Player Skill Levels",
+        title="📋 Player Skill Levels & Regions",
         description=f"Total players: {len(players)}",
         color=0x0099ff
     )
     
     # Group players by skill level for better organization
     skill_groups = {}
-    for user_id, username, skill in players:
+    for player_data in players:
+        # Handle both old (3-tuple) and new (4-tuple) database formats
+        if len(player_data) == 4:
+            user_id, username, skill, region = player_data
+        else:
+            user_id, username, skill = player_data
+            region = None
+            
         if skill not in skill_groups:
             skill_groups[skill] = []
-        skill_groups[skill].append(username)
+        region_str = f" ({region})" if region else ""
+        skill_groups[skill].append(f"{username}{region_str}")
     
     # Add fields for each skill level (in reverse order, highest first)
     for skill in sorted(skill_groups.keys(), reverse=True):
@@ -1015,7 +1169,7 @@ async def team_help_subcommand(ctx):
     """Show detailed help information"""
     embed = discord.Embed(
         title="🤖 Enhanced Team Generator Bot Help",
-        description="Generate random or balanced teams with skill-based balancing!",
+        description="Generate random or balanced teams with skill-based balancing and region support!",
         color=0x0099ff
     )
     
@@ -1024,6 +1178,8 @@ async def team_help_subcommand(ctx):
         value=(
             "`!teams <format>` - Generate random teams (shows preview with button)\n"
             "`!teams <format> balanced` - Generate balanced teams (shows preview with button)\n"
+            "`!teams <format> region <CODE>` - Teams with at least one player from region\n"
+            "`!teams <format> balanced region <CODE>` - Balanced teams with region requirement\n"
             "`!teams debug` - Create debug channel\n"
             "`!teams cleanup` - Clean up team channels"
         ),
@@ -1034,9 +1190,12 @@ async def team_help_subcommand(ctx):
         name="👤 Player Commands",
         value=(
             "`!teams skill` - View your skill level\n"
-            "`!teams skill <level>` - Set your skill level (1-10)\n"
+            "`!teams skill <level>` - Set your skill level (1-20)\n"
             "`!teams skill @user <level>` - Set user's skill level (requires Manage Roles)\n"
-            "`!teams players` - List all players and skill levels"
+            "`!teams region` - View your region\n"
+            "`!teams region <CODE>` - Set your region (e.g., CA, US, UK)\n"
+            "`!teams region @user <CODE>` - Set user's region (requires Manage Roles)\n"
+            "`!teams players` - List all players with skill levels and regions"
         ),
         inline=False
     )
@@ -1046,8 +1205,20 @@ async def team_help_subcommand(ctx):
         value=(
             "`!teams 4:4` - Two random teams of 4\n"
             "`!teams 3:3:2 balanced` - Balanced teams (3,3,2)\n"
-            "`!teams 5:5:5:5` - Four random teams of 5\n"
-            "`!teams 2:2:2:2 balanced` - Four balanced teams of 2"
+            "`!teams 4:4:2 region CA` - Teams with at least 1 CA player each\n"
+            "`!teams 3:3:3 balanced region US` - Balanced teams with US requirement\n"
+            "`!teams 5:5:5:5` - Four random teams of 5"
+        ),
+        inline=False
+    )
+    
+    embed.add_field(
+        name="🌍 Region System (NEW!)",
+        value=(
+            "• Set your region with `!teams region <CODE>` (e.g., CA, US, UK, AUS)\n"
+            "• Use `region <CODE>` in team format to ensure each team has at least one player from that region\n"
+            "• Combine with `balanced` for skill-balanced teams with region requirements\n"
+            "• Remaining spots filled with players from any region"
         ),
         inline=False
     )
@@ -1055,7 +1226,7 @@ async def team_help_subcommand(ctx):
     embed.add_field(
         name="⚖️ Balanced Teams",
         value=(
-            "• Uses player skill levels (1-10) to create fair teams\n"
+            "• Uses player skill levels (1-20) to create fair teams\n"
             "• Automatically creates players with skill level 1\n"
             "• Shows team averages and balance score\n"
             "• Lower balance score = more balanced teams"
@@ -1066,16 +1237,17 @@ async def team_help_subcommand(ctx):
     embed.add_field(
         name="🎯 How it works",
         value=(
-            "1. Set your skill level with `!teams skill <1-10>`\n"
-            "2. Join a voice channel\n"
-            "3. Run `!teams <format>` (random) or `!teams <format> balanced`\n"
-            "4. **NEW:** Review the team preview and click 'Create Team Channels' button\n"
-            "5. Bot creates team channels and moves members\n"
-            "6. **NEW:** During game:\n"
+            "1. Set your skill level with `!teams skill <1-20>`\n"
+            "2. Set your region with `!teams region <CODE>` (optional)\n"
+            "3. Join a voice channel\n"
+            "4. Run team command (e.g., `!teams 4:4:2 balanced region CA`)\n"
+            "5. Review the team preview and click 'Create Team Channels' button\n"
+            "6. Bot creates team channels and moves members\n"
+            "7. During game:\n"
             "   • Click 'End Team X' to end individual teams\n"
             "   • Click 'End Game All' to end all teams at once\n"
-            "7. Players moved back to 'Waiting Room' and channels deleted\n"
-            "8. Alternative: Use `!teams cleanup` to manually remove channels"
+            "8. Players moved back to 'Waiting Room' and channels deleted\n"
+            "9. Alternative: Use `!teams cleanup` to manually remove channels"
         ),
         inline=False
     )
@@ -1097,7 +1269,7 @@ async def team_help_subcommand(ctx):
 async def teams_error(ctx, error):
     """Error handler for teams command group"""
     if isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send("❌ Please specify team format! Example: `!teams 4:4:2` or `!teams 3:3:3 balanced`")
+        await ctx.send("❌ Please specify team format! Example: `!teams 4:4:2`, `!teams 3:3:3 balanced`, or `!teams 4:4:2 region CA`")
     else:
         await ctx.send(f"❌ An error occurred: {str(error)}")
 
@@ -1107,9 +1279,10 @@ if __name__ == "__main__":
     print("Features:")
     print("- SQLite database for player skill storage")
     print("- Random team generation")
-    print("- Balanced team generation based on skill levels")
-    print("- Player skill management commands")
-    print("- Button-based team creation (NEW)")
+    print("- Balanced team generation based on skill levels (1-20)")
+    print("- Region-based team requirements (NEW!)")
+    print("- Player skill and region management commands")
+    print("- Button-based team creation")
     print()
     print("Make sure to:")
     print("1. Set your DISCORD_TOKEN environment variable")
