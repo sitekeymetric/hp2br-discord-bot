@@ -596,7 +596,7 @@ class TeamGenerator:
                 team_averages.append(team_avg)
                 current_index += size
             
-            # Calculate balance score (lower is better)
+            # Calculate balance score (higher is better)
             if len(team_averages) > 1:
                 balance_score = max(team_averages) - min(team_averages)
             else:
@@ -684,7 +684,7 @@ class TeamGenerator:
                 else:
                     team_averages.append(1.0)
             
-            # Calculate balance score (lower is better)
+            # Calculate balance score (higher is better)
             if len(team_averages) > 1:
                 balance_score = max(team_averages) - min(team_averages)
             else:
@@ -758,7 +758,7 @@ class TeamGenerator:
                     try:
                         if member.voice:  # Check if member is still in a voice channel
                             await member.move_to(channel)
-                            await asyncio.sleep(0.3)  # 1-second delay after moving each player
+                            await asyncio.sleep(0.1)  # 1-second delay after moving each player
                     except discord.HTTPException:
                         print(f"Failed to move {member.display_name} to {channel_name}")
                         
@@ -936,7 +936,7 @@ async def teams_group(ctx, *, team_format: str = None):
             balance_score = max(skill_averages) - min(skill_averages)
             embed.add_field(
                 name="Balance Score",
-                value=f"{balance_score:.2f} (lower is better)",
+                value=f"{balance_score:.2f} (higher is better)",
                 inline=False
             )
         
@@ -1317,6 +1317,109 @@ async def teams_error(ctx, error):
         await ctx.send("❌ Please specify team format! Example: `!teams 4:4:2`, `!teams 3:3:3 balanced`, or `!teams 4:4:2 region CA`")
     else:
         await ctx.send(f"❌ An error occurred: {str(error)}")
+
+# Shortcut commands for skill management
+@bot.command(name='skill', help='Shortcut for skill management - use !skill + or !skill -')
+async def skill_shortcut(ctx, operation: str = None, member: Optional[discord.Member] = None):
+    """Shortcut command for !teams skill + and !teams skill -"""
+    
+    # If no operation specified, show current skill for the user
+    if operation is None:
+        target_member = member if member else ctx.author
+        current_skill = player_db.get_player_skill(target_member.id)
+        embed = discord.Embed(
+            title="📊 Player Skill Level",
+            description=f"{target_member.display_name}'s current skill level: **{current_skill}/20**",
+            color=0x0099ff
+        )
+        await ctx.send(embed=embed)
+        return
+    
+    # Validate operation
+    if operation not in ["+", "-"]:
+        await ctx.send("❌ Invalid operation! Use `!skill +` to increment or `!skill -` to decrement your skill level.")
+        return
+    
+    # Determine target member (default to command author)
+    target_member = member if member else ctx.author
+    
+    # Check permissions if trying to modify someone else's skill
+    if target_member != ctx.author and not ctx.author.guild_permissions.manage_roles:
+        await ctx.send("❌ You can only modify your own skill level, or you need 'Manage Roles' permission to modify others!")
+        return
+    
+    # Get current skill level
+    current_skill = player_db.get_player_skill(target_member.id)
+    
+    # Handle increment/decrement
+    if operation == "+":
+        new_skill = current_skill + 1
+        if new_skill > 20:
+            await ctx.send(f"❌ Cannot increment! {target_member.display_name} is already at maximum skill level (20).")
+            return
+        operation_text = "incremented"
+        emoji = "📈"
+        change_text = "+1"
+        color = 0x00ff00
+    else:  # operation == "-"
+        new_skill = current_skill - 1
+        if new_skill < 1:
+            await ctx.send(f"❌ Cannot decrement! {target_member.display_name} is already at minimum skill level (1).")
+            return
+        operation_text = "decremented"
+        emoji = "📉"
+        change_text = "-1"
+        color = 0xff9900
+    
+    # Update the skill level
+    success = player_db.set_player_skill(target_member.id, target_member.display_name, new_skill)
+    
+    if success:
+        embed = discord.Embed(
+            title=f"{emoji} Skill Level {operation_text.title()}",
+            description=f"{target_member.display_name}'s skill level: **{current_skill}** → **{new_skill}** ({change_text})",
+            color=color
+        )
+        embed.set_footer(text=copyright_notice)
+        await ctx.send(embed=embed)
+    else:
+        await ctx.send("❌ Failed to update skill level!")
+
+# Shortcut command for teams cleanup
+@bot.command(name='tc', help='Shortcut for !teams cleanup - clean up all HP2BR team channels')
+async def tc_shortcut(ctx):
+    """Shortcut command for !teams cleanup"""
+    if not ctx.author.guild_permissions.manage_channels:
+        await ctx.send("❌ You need 'Manage Channels' permission to use this command!")
+        return
+    
+    guild = ctx.guild
+    deleted_count, moved_count, failed_moves = await cleanup_old_channels(guild)
+    
+    if deleted_count > 0:
+        embed = discord.Embed(
+            title="✅ Cleanup Complete!",
+            description=f"Cleaned up {deleted_count} team channels",
+            color=0x00ff00
+        )
+        
+        if moved_count > 0:
+            embed.add_field(
+                name="👥 Players Moved",
+                value=f"Moved {moved_count} players to Waiting Room",
+                inline=False
+            )
+        
+        if failed_moves:
+            embed.add_field(
+                name="⚠️ Failed Moves",
+                value="\n".join(failed_moves[:5]),  # Show first 5 failures
+                inline=False
+            )
+        
+        await ctx.send(embed=embed)
+    else:
+        await ctx.send("ℹ️ No team channels found to clean up.")
 
 # Run the bot
 if __name__ == "__main__":
