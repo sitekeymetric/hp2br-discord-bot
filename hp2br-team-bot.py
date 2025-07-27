@@ -33,7 +33,7 @@ class PlayerDatabase:
                 CREATE TABLE IF NOT EXISTS players (
                     user_id INTEGER PRIMARY KEY,
                     username TEXT NOT NULL,
-                    skill_level INTEGER DEFAULT 1,
+                    skill_level INTEGER DEFAULT 10,
                     region TEXT DEFAULT NULL,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -420,7 +420,7 @@ class TeamCreationView(discord.ui.View):
             await interaction.response.edit_message(embed=embed, view=self)
             
             # Wait 5 seconds before showing End Game controls
-            await asyncio.sleep(30)
+            timer.sleep(30)
             
             # Create new view with End Game button after delay
             new_view = TeamGameView(self.created_channels, self.guild)
@@ -935,8 +935,8 @@ async def teams_group(ctx, *, team_format: str = None):
             skill_averages = [stats[0] for stats in team_stats]
             balance_score = max(skill_averages) - min(skill_averages)
             embed.add_field(
-                name="Balance Score",
-                value=f"{balance_score:.2f} (higher is better)",
+                name="✅ Balance Score ✅",
+                value=f"{balance_score:.2f} (lower is better)",
                 inline=False
             )
         
@@ -1207,6 +1207,101 @@ async def cleanup_old_channels(guild: discord.Guild):
     
     return deleted_count, moved_count, failed_moves
 
+@teams_group.command(name='balanced', help='Create balanced teams with max 4 per team from Waiting Room')
+async def balanced_teams_command(ctx, region: Optional[str] = None):
+    """Create balanced teams from 'Waiting Room' voice channel with max 4 per team"""
+    guild = ctx.guild
+    
+    # Find the "Waiting Room" channel
+    waiting_room = discord.utils.get(guild.voice_channels, name="Waiting Room")
+    
+    if not waiting_room:
+        await ctx.send("❌ Could not find 'Waiting Room' voice channel! Please create one first.")
+        return
+    
+    # Get members in the waiting room (exclude bots)
+    members = [member for member in waiting_room.members if not member.bot]
+    
+    if len(members) < 2:
+        await ctx.send("❌ Need at least 2 members in the Waiting Room to generate teams!")
+        return
+    
+    # Calculate number of teams needed (max 4 per team)
+    num_teams = (len(members) + 3) // 4  # Round up division to ensure max 4 per team
+    
+    # Create team sizes as evenly as possible
+    base_size = len(members) // num_teams
+    extra_members = len(members) % num_teams
+    
+    team_sizes = [base_size] * num_teams
+    for i in range(extra_members):
+        team_sizes[i] += 1
+    
+    try:
+        # Create teams based on whether region is specified
+        if region:
+            teams = team_gen.create_balanced_region_teams(members, team_sizes, region.upper())
+            team_type = f"Balanced Teams (Region: {region.upper()}, Max 4 per team)"
+        else:
+            teams = team_gen.create_balanced_teams(members, team_sizes)
+            team_type = "Balanced Teams (Max 4 per team)"
+        
+        # Calculate team statistics
+        team_stats = team_gen.calculate_team_stats(teams)
+        
+        # Create response embed showing the proposed teams
+        embed = discord.Embed(
+            title=f"🎯 {team_type} Preview",
+            description=f"Generated {len(teams)} teams from {len(members)} members in Waiting Room\n**Click the button below to create channels and move players!**",
+            color=0x00aa99
+        )
+        
+        for i, (team, (avg_skill, skills, regions)) in enumerate(zip(teams, team_stats), 1):
+            team_names = []
+            for j, member in enumerate(team):
+                skill = skills[j]
+                member_region = regions[j]
+                if region:  # Show regions when filtering by region
+                    team_names.append(f"• {member.display_name} (Skill: {skill}, Region: {member_region})")
+                else:
+                    team_names.append(f"• {member.display_name} (Skill: {skill})")
+            
+            field_value = "\n".join(team_names)
+            field_value += f"\n**Average Skill: {avg_skill:.1f}**"
+            
+            # Show region distribution if region filtering was used
+            if region:
+                region_count = sum(1 for r in regions if r == region.upper())
+                field_value += f"\n**{region.upper()} Players: {region_count}/{len(team)}**"
+            
+            embed.add_field(
+                name=f"Team {i} ({len(team)} members)",
+                value=field_value,
+                inline=True
+            )
+        
+        if len(team_stats) > 1:
+            skill_averages = [stats[0] for stats in team_stats]
+            balance_score = max(skill_averages) - min(skill_averages)
+            embed.add_field(
+                name="Balance Score",
+                value=f"{balance_score:.2f} (lower is better)",
+                inline=False
+            )
+        
+        embed.set_footer(text="Teams are ready! Click the button to create channels and move players.")
+        
+        # Create the view with the team creation button
+        view = TeamCreationView(teams, team_stats, guild, True)
+        await ctx.send(embed=embed, view=view)
+        
+    except ValueError as e:
+        await ctx.send(f"❌ {str(e)}")
+    except discord.Forbidden:
+        await ctx.send("❌ I don't have permission to create channels or move members!")
+    except Exception as e:
+        await ctx.send(f"❌ An error occurred: {str(e)}")
+
 @teams_group.command(name='help', help='Show detailed help for team commands')
 async def team_help_subcommand(ctx):
     """Show detailed help information"""
@@ -1223,6 +1318,8 @@ async def team_help_subcommand(ctx):
             "`!teams <format> balanced` - Generate balanced teams (shows preview with button)\n"
             "`!teams <format> region <CODE>` - Teams with at least one player from region\n"
             "`!teams <format> balanced region <CODE>` - Balanced teams with region requirement\n"
+            "`!teams balanced` - Balanced teams from Waiting Room (max 4 per team)\n"
+            "`!teams balanced <REGION>` - Balanced teams from Waiting Room with region requirement\n"
             "`!teams debug` - Create debug channel\n"
             "`!teams cleanup` - Clean up team channels"
         ),
@@ -1252,7 +1349,9 @@ async def team_help_subcommand(ctx):
             "`!teams 3:3:2 balanced` - Balanced teams (3,3,2)\n"
             "`!teams 4:4:2 region CA` - Teams with at least 1 CA player each\n"
             "`!teams 3:3:3 balanced region US` - Balanced teams with US requirement\n"
-            "`!teams 5:5:5:5` - Four random teams of 5"
+            "`!teams 5:5:5:5` - Four random teams of 5\n"
+            "`!teams balanced` - Auto-balanced teams from Waiting Room (max 4/team)\n"
+            "`!teams balanced CA` - Auto-balanced teams with CA region requirement"
         ),
         inline=False
     )
@@ -1275,6 +1374,19 @@ async def team_help_subcommand(ctx):
             "• Automatically creates players with skill level 1\n"
             "• Shows team averages and balance score\n"
             "• Lower balance score = more balanced teams"
+        ),
+        inline=False
+    )
+    
+    embed.add_field(
+        name="🎯 Auto-Balanced Teams (NEW!)",
+        value=(
+            "• `!teams balanced` - Auto-divides all players in Waiting Room\n"
+            "• Maximum 4 players per team\n"
+            "• Automatically calculates optimal team sizes\n"
+            "• `!teams balanced <REGION>` - Same as above but ensures each team has at least one player from specified region\n"
+            "• Perfect for when you don't want to specify exact team sizes\n"
+            "• Requires 'Waiting Room' voice channel to exist"
         ),
         inline=False
     )
