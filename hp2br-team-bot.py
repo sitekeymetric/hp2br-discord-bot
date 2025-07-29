@@ -119,9 +119,181 @@ class PlayerDatabase:
         self.add_or_update_player(user_id, username, current_skill, region.upper() if region else None)
         return True
 
+class MatchResultView(discord.ui.View):
+    def __init__(self, teams: List[List[discord.Member]], team_names: List[str]):
+        super().__init__(timeout=None)  # No timeout - persistent until interaction
+        self.teams = teams
+        self.team_names = team_names
+        self.top_team_index = None
+        self.bottom_team_index = None
+        
+        # Create dropdown for top team selection
+        top_options = [
+            discord.SelectOption(
+                label=f"{team_name} (Top Team)",
+                description=f"{len(team)} players: {', '.join([m.display_name for m in team][:3])}{'...' if len(team) > 3 else ''}",
+                value=str(i)
+            )
+            for i, (team, team_name) in enumerate(zip(teams, team_names))
+        ]
+        
+        bottom_options = [
+            discord.SelectOption(
+                label=f"{team_name} (Bottom Team)", 
+                description=f"{len(team)} players: {', '.join([m.display_name for m in team][:3])}{'...' if len(team) > 3 else ''}",
+                value=str(i)
+            )
+            for i, (team, team_name) in enumerate(zip(teams, team_names))
+        ]
+        
+        self.top_select = discord.ui.Select(
+            placeholder="Select the TOP team (+1 skill)",
+            options=top_options,
+            custom_id="top_team_select"
+        )
+        self.top_select.callback = self.top_team_selected
+        
+        self.bottom_select = discord.ui.Select(
+            placeholder="Select the BOTTOM team (-1 skill)",
+            options=bottom_options,
+            custom_id="bottom_team_select"
+        )
+        self.bottom_select.callback = self.bottom_team_selected
+        
+        self.add_item(self.top_select)
+        self.add_item(self.bottom_select)
+    
+    async def top_team_selected(self, interaction: discord.Interaction):
+        """Handle top team selection"""
+        self.top_team_index = int(interaction.data['values'][0])
+        await interaction.response.defer()
+        await self.check_if_ready(interaction)
+    
+    async def bottom_team_selected(self, interaction: discord.Interaction):
+        """Handle bottom team selection"""
+        self.bottom_team_index = int(interaction.data['values'][0])
+        await interaction.response.defer()
+        await self.check_if_ready(interaction)
+    
+    async def check_if_ready(self, interaction: discord.Interaction):
+        """Check if both teams are selected and process the match result"""
+        if self.top_team_index is not None and self.bottom_team_index is not None:
+            if self.top_team_index == self.bottom_team_index:
+                await interaction.followup.send(
+                    "❌ You cannot select the same team as both top and bottom! Please select different teams.",
+                    ephemeral=True
+                )
+                # Reset selections
+                self.top_team_index = None
+                self.bottom_team_index = None
+                return
+            
+            # Process the match result
+            await self.process_match_result(interaction)
+    
+    async def process_match_result(self, interaction: discord.Interaction):
+        """Process the match result and update skill levels"""
+        try:
+            top_team = self.teams[self.top_team_index]
+            bottom_team = self.teams[self.bottom_team_index]
+            top_team_name = self.team_names[self.top_team_index]
+            bottom_team_name = self.team_names[self.bottom_team_index]
+            
+            # Update skill levels
+            top_updates = []
+            bottom_updates = []
+            top_failures = []
+            bottom_failures = []
+            
+            # Update top team (+1 skill)
+            for member in top_team:
+                current_skill = player_db.get_player_skill(member.id)
+                if current_skill < 20:  # Don't exceed maximum
+                    new_skill = current_skill + 1
+                    success = player_db.set_player_skill(member.id, member.display_name, new_skill)
+                    if success:
+                        top_updates.append(f"• {member.display_name}: {current_skill} → {new_skill}")
+                    else:
+                        top_failures.append(member.display_name)
+                else:
+                    top_updates.append(f"• {member.display_name}: {current_skill} (already at max)")
+            
+            # Update bottom team (-1 skill)
+            for member in bottom_team:
+                current_skill = player_db.get_player_skill(member.id)
+                if current_skill > 1:  # Don't go below minimum
+                    new_skill = current_skill - 1
+                    success = player_db.set_player_skill(member.id, member.display_name, new_skill)
+                    if success:
+                        bottom_updates.append(f"• {member.display_name}: {current_skill} → {new_skill}")
+                    else:
+                        bottom_failures.append(member.display_name)
+                else:
+                    bottom_updates.append(f"• {member.display_name}: {current_skill} (already at min)")
+            
+            # Create result embed
+            embed = discord.Embed(
+                title="🏆 Match Result Processed!",
+                description=f"**Top Team:** {top_team_name}\n**Bottom Team:** {bottom_team_name}",
+                color=0x00ff00
+            )
+            
+            if top_updates:
+                embed.add_field(
+                    name=f"📈 {top_team_name} (+1 Skill)",
+                    value="\n".join(top_updates),
+                    inline=False
+                )
+            
+            if bottom_updates:
+                embed.add_field(
+                    name=f"📉 {bottom_team_name} (-1 Skill)",
+                    value="\n".join(bottom_updates),
+                    inline=False
+                )
+            
+            # Show other teams (no change)
+            other_teams = []
+            for i, (team, team_name) in enumerate(zip(self.teams, self.team_names)):
+                if i != self.top_team_index and i != self.bottom_team_index:
+                    other_teams.append(f"• {team_name}: {len(team)} players (no change)")
+            
+            if other_teams:
+                embed.add_field(
+                    name="⚪ Other Teams (No Change)",
+                    value="\n".join(other_teams),
+                    inline=False
+                )
+            
+            if top_failures or bottom_failures:
+                failure_text = ""
+                if top_failures:
+                    failure_text += f"Top team failures: {', '.join(top_failures)}\n"
+                if bottom_failures:
+                    failure_text += f"Bottom team failures: {', '.join(bottom_failures)}"
+                embed.add_field(
+                    name="⚠️ Update Failures",
+                    value=failure_text,
+                    inline=False
+                )
+            
+            embed.set_footer(text="Match result has been recorded and skill levels updated!")
+            
+            # Disable all controls
+            for item in self.children:
+                item.disabled = True
+            
+            await interaction.edit_original_response(embed=embed, view=self)
+            
+        except Exception as e:
+            await interaction.followup.send(
+                f"❌ An error occurred while processing match result: {str(e)}",
+                ephemeral=True
+            )
+
 class CleanupView(discord.ui.View):
     def __init__(self):
-        super().__init__(timeout=900)  # 15 minutes timeout (Discord's maximum)
+        super().__init__(timeout=None)  # No timeout - persistent until interaction
     
     @discord.ui.button(label='🧹 Cleanup Debug Channels', style=discord.ButtonStyle.red)
     async def cleanup_button(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -158,10 +330,21 @@ class CleanupView(discord.ui.View):
         await interaction.edit_original_response(view=self)
 
 class TeamGameView(discord.ui.View):
-    def __init__(self, created_channels: List[discord.VoiceChannel], guild: discord.Guild):
-        super().__init__(timeout=3600)  # 1 hour timeout for games
+    def __init__(self, created_channels: List[discord.VoiceChannel], guild: discord.Guild, teams: List[List[discord.Member]] = None):
+        super().__init__(timeout=None)  # No timeout - persistent until interaction
         self.created_channels = created_channels
         self.guild = guild
+        self.teams = teams or []  # Store teams for match result functionality
+        
+        # Add match result button if we have teams
+        if self.teams and len(self.teams) >= 2:
+            match_button = discord.ui.Button(
+                label='🏆 Record Match Result',
+                style=discord.ButtonStyle.primary,
+                custom_id='record_match'
+            )
+            match_button.callback = self.record_match_callback
+            self.add_item(match_button)
         
         # Add individual team end buttons (max 5 to fit in Discord's limits)
         for i, channel in enumerate(self.created_channels[:5], 1):
@@ -172,6 +355,47 @@ class TeamGameView(discord.ui.View):
             )
             button.callback = self.create_end_team_callback(i-1, channel)
             self.add_item(button)
+    
+    async def record_match_callback(self, interaction: discord.Interaction):
+        """Handle match result recording"""
+        try:
+            # Get team names from channels
+            team_names = []
+            for i, channel in enumerate(self.created_channels):
+                if channel and hasattr(channel, 'name'):
+                    team_names.append(channel.name)
+                else:
+                    team_names.append(f"Team {i+1}")
+            
+            # Create match result view
+            embed = discord.Embed(
+                title="🏆 Record Match Result",
+                description="Select which team performed the **best** (top) and which performed the **worst** (bottom).\n\n"
+                           "• **Top team** members get **+1 skill level**\n"
+                           "• **Bottom team** members get **-1 skill level**\n"
+                           "• All other team members get **no change**",
+                color=0x0099ff
+            )
+            
+            # Show team composition
+            for i, (team, team_name) in enumerate(zip(self.teams, team_names)):
+                member_list = ", ".join([member.display_name for member in team])
+                embed.add_field(
+                    name=f"{team_name}",
+                    value=f"{len(team)} players: {member_list}",
+                    inline=False
+                )
+            
+            embed.set_footer(text="Select top team first, then bottom team. You cannot select the same team for both.")
+            
+            match_view = MatchResultView(self.teams, team_names)
+            await interaction.response.send_message(embed=embed, view=match_view, ephemeral=False)
+            
+        except Exception as e:
+            await interaction.response.send_message(
+                f"❌ An error occurred while setting up match result recording: {str(e)}",
+                ephemeral=True
+            )
     
     def create_end_team_callback(self, team_index: int, channel: discord.VoiceChannel):
         """Create a callback function for ending a specific team"""
@@ -419,11 +643,11 @@ class TeamCreationView(discord.ui.View):
             button.disabled = True
             await interaction.response.edit_message(embed=embed, view=self)
             
-            # Wait 5 seconds before showing End Game controls
-            timer.sleep(30)
+            # Wait 30 seconds before showing End Game controls
+            await asyncio.sleep(30)
             
             # Create new view with End Game button after delay
-            new_view = TeamGameView(self.created_channels, self.guild)
+            new_view = TeamGameView(self.created_channels, self.guild, self.teams)
             
             # Update the message with End Game controls
             embed.add_field(
@@ -1532,6 +1756,59 @@ async def tc_shortcut(ctx):
         await ctx.send(embed=embed)
     else:
         await ctx.send("ℹ️ No team channels found to clean up.")
+
+# Match result command
+@bot.command(name='match', help='Record match results and update player skill levels')
+async def match_command(ctx):
+    """Record match results and update player skill levels based on team performance"""
+    guild = ctx.guild
+    
+    # Check if there are any HP2BR team channels
+    team_channels = [ch for ch in guild.voice_channels if ch.name.startswith("HP2BR-Team-")]
+    
+    if len(team_channels) < 2:
+        await ctx.send("❌ Need at least 2 HP2BR team channels to record match results! Generate teams first using `!teams`")
+        return
+    
+    # Get teams from current channels
+    teams = []
+    team_names = []
+    
+    for channel in team_channels:
+        # Get members in each channel (exclude bots)
+        channel_members = [member for member in channel.members if not member.bot]
+        if channel_members:  # Only include teams with members
+            teams.append(channel_members)
+            team_names.append(channel.name)
+    
+    if len(teams) < 2:
+        await ctx.send("❌ Need at least 2 teams with members to record match results!")
+        return
+    
+    # Create match result embed
+    embed = discord.Embed(
+        title="🏆 Record Match Result",
+        description="Select which team performed the **best** (top) and which performed the **worst** (bottom).\n\n"
+                   "• **Top team** members get **+1 skill level**\n"
+                   "• **Bottom team** members get **-1 skill level**\n"
+                   "• All other team members get **no change**",
+        color=0x0099ff
+    )
+    
+    # Show team composition
+    for i, (team, team_name) in enumerate(zip(teams, team_names)):
+        member_list = ", ".join([member.display_name for member in team])
+        embed.add_field(
+            name=f"{team_name}",
+            value=f"{len(team)} players: {member_list}",
+            inline=False
+        )
+    
+    embed.set_footer(text="Select top team first, then bottom team. You cannot select the same team for both.")
+    
+    # Create the match result view
+    match_view = MatchResultView(teams, team_names)
+    await ctx.send(embed=embed, view=match_view)
 
 # Run the bot
 if __name__ == "__main__":
