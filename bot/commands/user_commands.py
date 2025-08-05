@@ -196,17 +196,17 @@ class UserCommands(commands.Cog):
             )
             await interaction.followup.send(embed=embed, ephemeral=True)
     
-    @app_commands.command(name="leaderboard", description="Show guild leaderboard (based on completed matches only)")
+    @app_commands.command(name="leaderboard", description="Show guild leaderboard (all registered players)")
     @app_commands.describe(limit="Number of players to show (default: 10, max: 25)")
     async def leaderboard(self, interaction: discord.Interaction, limit: Optional[int] = 10):
-        """Display top players in the guild based only on COMPLETED matches"""
+        """Display top players in the guild - shows all registered users"""
         await interaction.response.defer()
         
         # Validate limit
         limit = max(1, min(limit, 25))
         
         try:
-            # Get users with completed match statistics only
+            # Get users with completed match statistics (includes users with 0 completed matches)
             users = await api_client.get_guild_users_completed_stats(interaction.guild.id)
             
             if not users:
@@ -217,8 +217,8 @@ class UserCommands(commands.Cog):
                 await interaction.followup.send(embed=embed)
                 return
             
-            # Sort by rating (mu) descending
-            users.sort(key=lambda x: x.get("rating_mu", 0), reverse=True)
+            # Sort by rating (mu) descending, then by games played descending
+            users.sort(key=lambda x: (x.get("rating_mu", 1500), x.get("games_played", 0)), reverse=True)
             
             # Limit results
             users = users[:limit]
@@ -228,10 +228,18 @@ class UserCommands(commands.Cog):
                 guild_name=interaction.guild.name
             )
             
-            # Add note about completed matches only
+            # Count users with and without completed matches
+            users_with_matches = len([u for u in users if u.get("games_played", 0) > 0])
+            users_without_matches = len(users) - users_with_matches
+            
+            # Add informative note
+            note_text = "Rankings are based on **rating and completed matches**."
+            if users_without_matches > 0:
+                note_text += f"\n{users_without_matches} player(s) shown have not completed matches yet."
+            
             embed.add_field(
                 name="📊 Leaderboard Note",
-                value="Rankings are based on **completed matches only**.\nPending or cancelled matches are not included.",
+                value=note_text,
                 inline=False
             )
             

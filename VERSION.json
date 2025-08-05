@@ -1,8 +1,8 @@
 {
   "major": 1,
   "minor": 9,
-  "patch": 2,
+  "patch": 4,
   "build": 1,
-  "last_updated": "2025-08-05T16:38:29.828545",
-  "description": "Integrated top 3 teammates and win rates into main /stats command display"
+  "last_updated": "2025-08-05T16:46:09.220865",
+  "description": "Fixed API route ordering conflict that was causing 422 errors in leaderboard command"
 }
