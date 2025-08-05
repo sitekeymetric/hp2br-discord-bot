@@ -84,7 +84,7 @@ The bot requires the following permissions:
 
 ### For Players
 1. **Join**: Use `/register` to join the team balance system
-2. **Wait**: Join the "🎯 Waiting Room" voice channel
+2. **Wait**: Join the "Waiting Room" voice channel
 3. **Play**: Admin uses `/create_teams` to create balanced teams
 4. **Accept**: Vote to accept or decline the team proposal
 5. **Compete**: Players are moved to team voice channels automatically
@@ -110,7 +110,7 @@ DEFAULT_TEAMS=3               # Default number of teams
 MIN_PLAYERS=6                 # Minimum players for team creation
 MAX_PLAYERS=15                # Maximum players per match
 PROPOSAL_TIMEOUT=300          # Team proposal timeout (seconds)
-WAITING_ROOM_NAME=🎯 Waiting Room  # Waiting room channel name
+WAITING_ROOM_NAME=Waiting Room  # Waiting room channel name
 TEAM_CHANNEL_PREFIX=Team      # Prefix for team channels
 ```
 
