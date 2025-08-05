@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Migration script to import TrueSkill user and match data into the local database
-(excluding rating information)
+Migration script to export TrueSkill user and match data as SQL statements
+for direct import into SQLite3 database
 """
 
 import httpx
@@ -9,13 +9,16 @@ import sys
 import os
 import uuid
 from datetime import datetime
-from sqlalchemy.orm import Session
 
 # Add the api directory to the path so we can import modules
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from database.connection import get_db, create_tables
-from database.models import User, Match, MatchStatus
+try:
+    from database.models import MatchStatus
+except ImportError:
+    # Define MatchStatus enum if import fails
+    class MatchStatus:
+        COMPLETED = "completed"
 
 # Configuration
 TRUESKILL_SERVICE_URL = "http://192.168.192.10:8081"
@@ -43,108 +46,120 @@ def fetch_trueskill_games():
         print(f"Error fetching TrueSkill games: {e}")
         return None
 
-def migrate_players(db: Session, trueskill_players):
-    """Migrate TrueSkill players to local database (excluding ratings)"""
+def escape_sql_string(value):
+    """Escape single quotes in SQL strings"""
+    if value is None:
+        return "NULL"
+    return f"'{str(value).replace(chr(39), chr(39) + chr(39))}'"
+
+def generate_player_sql(trueskill_players, output_file):
+    """Generate SQL INSERT statements for TrueSkill players"""
     migrated_count = 0
-    updated_count = 0
+    current_time = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    
+    output_file.write("-- TrueSkill Players Migration\n")
+    output_file.write("-- Generated on: " + current_time + "\n\n")
+    
+    # Create table if not exists
+    output_file.write("""-- Create users table if it doesn't exist
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    username TEXT NOT NULL,
+    region_code TEXT,
+    rating_mu REAL DEFAULT 1500.0,
+    rating_sigma REAL DEFAULT 350.0,
+    games_played INTEGER DEFAULT 0,
+    wins INTEGER DEFAULT 0,
+    losses INTEGER DEFAULT 0,
+    draws INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(guild_id, user_id)
+);
+
+""")
     
     for player in trueskill_players:
         user_id = player["user_id"]
+        username = escape_sql_string(player["username"])
+        region = escape_sql_string(player["region"] if player["region"] != "Unknown" else None)
+        games_played = player["games_played"]
+        wins = player["wins"]
+        losses = player["losses"]
+        draws = player["draws"]
         
-        # Check if user already exists
-        existing_user = db.query(User).filter(
-            User.guild_id == TARGET_GUILD_ID,
-            User.user_id == user_id
-        ).first()
-        
-        if existing_user:
-            # Update existing user with TrueSkill data (excluding ratings)
-            existing_user.username = player["username"]
-            existing_user.region_code = player["region"] if player["region"] != "Unknown" else None
-            existing_user.games_played = player["games_played"]
-            existing_user.wins = player["wins"]
-            existing_user.losses = player["losses"]
-            existing_user.draws = player["draws"]
-            existing_user.last_updated = datetime.utcnow()
-            # Keep existing rating_mu and rating_sigma values
-            
-            updated_count += 1
-            print(f"Updated user: {player['username']} (ID: {user_id}) - kept existing ratings")
-        else:
-            # Create new user with default ratings
-            new_user = User(
-                guild_id=TARGET_GUILD_ID,
-                user_id=user_id,
-                username=player["username"],
-                region_code=player["region"] if player["region"] != "Unknown" else None,
-                rating_mu=1500.0,  # Default rating
-                rating_sigma=350.0,  # Default rating
-                games_played=player["games_played"],
-                wins=player["wins"],
-                losses=player["losses"],
-                draws=player["draws"],
-                created_at=datetime.utcnow(),
-                last_updated=datetime.utcnow()
-            )
-            
-            db.add(new_user)
-            migrated_count += 1
-            print(f"Added new user: {player['username']} (ID: {user_id}) - default ratings applied")
+        # Use INSERT OR REPLACE to handle existing users
+        sql = f"""INSERT OR REPLACE INTO users (
+    guild_id, user_id, username, region_code, rating_mu, rating_sigma,
+    games_played, wins, losses, draws, created_at, last_updated
+) VALUES (
+    {TARGET_GUILD_ID}, {user_id}, {username}, {region}, 1500.0, 350.0,
+    {games_played}, {wins}, {losses}, {draws}, '{current_time}', '{current_time}'
+);
+"""
+        output_file.write(sql)
+        migrated_count += 1
+        print(f"Generated SQL for user: {player['username']} (ID: {user_id})")
     
-    return migrated_count, updated_count
+    output_file.write(f"\n-- Migrated {migrated_count} players\n\n")
+    return migrated_count
 
-def migrate_matches(db: Session, trueskill_games):
-    """Migrate TrueSkill games to local database as basic match records"""
+def generate_matches_sql(trueskill_games, output_file):
+    """Generate SQL INSERT statements for TrueSkill games as match records"""
     migrated_count = 0
-    skipped_count = 0
+    
+    output_file.write("-- TrueSkill Games Migration\n\n")
+    
+    # Create table if not exists
+    output_file.write("""-- Create matches table if it doesn't exist
+CREATE TABLE IF NOT EXISTS matches (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    match_id TEXT UNIQUE NOT NULL,
+    guild_id INTEGER NOT NULL,
+    created_by INTEGER NOT NULL,
+    start_time TIMESTAMP,
+    end_time TIMESTAMP,
+    status TEXT DEFAULT 'completed',
+    total_teams INTEGER DEFAULT 2,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+""")
     
     for game in trueskill_games:
-        game_id = game["game_id"]
-        
-        # Check if match already exists
-        existing_match = db.query(Match).filter(Match.match_id == game_id).first()
-        
-        if existing_match:
-            skipped_count += 1
-            print(f"Skipped existing match: {game_id}")
-            continue
+        game_id = escape_sql_string(game["game_id"])
         
         # Parse timestamps
         try:
-            created_at = datetime.strptime(game["created_at"], "%Y-%m-%d %H:%M:%S")
-            completed_at = datetime.strptime(game["completed_at"], "%Y-%m-%d %H:%M:%S")
+            created_at = datetime.strptime(game["created_at"], "%Y-%m-%d %H:%M:%S").strftime("%Y-%m-%d %H:%M:%S")
+            completed_at = datetime.strptime(game["completed_at"], "%Y-%m-%d %H:%M:%S").strftime("%Y-%m-%d %H:%M:%S")
         except ValueError as e:
-            print(f"Error parsing timestamps for game {game_id}: {e}")
+            print(f"Error parsing timestamps for game {game['game_id']}: {e}")
             continue
         
-        # Create new match record
-        new_match = Match(
-            match_id=game_id,  # Use the TrueSkill game_id directly
-            guild_id=TARGET_GUILD_ID,
-            created_by=0,  # Unknown creator, using 0 as placeholder
-            start_time=created_at,
-            end_time=completed_at,
-            status=MatchStatus.COMPLETED,  # All TrueSkill games are completed
-            total_teams=2,  # Assuming 2 teams (common for most games)
-            created_at=created_at
-        )
-        
-        db.add(new_match)
+        # Use INSERT OR IGNORE to avoid duplicates
+        sql = f"""INSERT OR IGNORE INTO matches (
+    match_id, guild_id, created_by, start_time, end_time, status, total_teams, created_at
+) VALUES (
+    {game_id}, {TARGET_GUILD_ID}, 0, '{created_at}', '{completed_at}', 'completed', 2, '{created_at}'
+);
+"""
+        output_file.write(sql)
         migrated_count += 1
-        print(f"Added match: {game_id} ({created_at})")
+        print(f"Generated SQL for match: {game['game_id']} ({created_at})")
     
-    return migrated_count, skipped_count
+    output_file.write(f"\n-- Migrated {migrated_count} matches\n\n")
+    return migrated_count
 
 def main():
-    print("TrueSkill Data Migration Script")
+    print("TrueSkill Data SQL Export Script")
     print("=" * 40)
     print(f"Source: {TRUESKILL_SERVICE_URL}")
     print(f"Target Guild ID: {TARGET_GUILD_ID}")
     print("Note: Rating information will NOT be migrated")
     print()
-    
-    # Ensure database tables exist
-    create_tables()
     
     # Fetch TrueSkill data
     print("Fetching TrueSkill players...")
@@ -165,7 +180,7 @@ def main():
     print()
     
     # Show preview of data
-    print("Preview of players to migrate:")
+    print("Preview of players to export:")
     for i, player in enumerate(trueskill_players[:5]):
         print(f"  {i+1}. {player['username']} (ID: {player['user_id']}) - {player['games_played']} games")
     
@@ -173,7 +188,7 @@ def main():
         print(f"  ... and {len(trueskill_players) - 5} more players")
     
     if trueskill_games:
-        print(f"\nPreview of games to migrate:")
+        print(f"\nPreview of games to export:")
         for i, game in enumerate(trueskill_games[:3]):
             print(f"  {i+1}. Game {game['game_id']} - {game['created_at']}")
         if len(trueskill_games) > 3:
@@ -181,43 +196,65 @@ def main():
     
     print()
     
-    # Confirm migration
-    confirm = input("Proceed with migration? (y/N): ").strip().lower()
+    # Get output filename
+    default_filename = f"trueskill_migration_{datetime.now().strftime('%Y%m%d_%H%M%S')}.sql"
+    filename = input(f"Output filename (default: {default_filename}): ").strip()
+    if not filename:
+        filename = default_filename
+    
+    # Confirm export
+    confirm = input(f"Proceed with SQL export to '{filename}'? (y/N): ").strip().lower()
     if confirm != 'y':
-        print("Migration cancelled.")
+        print("Export cancelled.")
         return 0
     
-    # Get database session
-    db = next(get_db())
-    
     try:
-        # Migrate players
-        print("\nMigrating players...")
-        player_migrated, player_updated = migrate_players(db, trueskill_players)
+        with open(filename, 'w', encoding='utf-8') as output_file:
+            # Write header
+            output_file.write("-- TrueSkill Data Migration SQL Export\n")
+            output_file.write(f"-- Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            output_file.write(f"-- Source: {TRUESKILL_SERVICE_URL}\n")
+            output_file.write(f"-- Target Guild ID: {TARGET_GUILD_ID}\n")
+            output_file.write("-- \n")
+            output_file.write("-- Usage: sqlite3 your_database.db < " + filename + "\n")
+            output_file.write("-- \n\n")
+            
+            # Begin transaction
+            output_file.write("BEGIN TRANSACTION;\n\n")
+            
+            # Export players
+            print(f"\nGenerating SQL for players...")
+            player_count = generate_player_sql(trueskill_players, output_file)
+            
+            # Export matches
+            if trueskill_games:
+                print(f"\nGenerating SQL for matches...")
+                match_count = generate_matches_sql(trueskill_games, output_file)
+            else:
+                match_count = 0
+            
+            # Commit transaction
+            output_file.write("COMMIT;\n\n")
+            
+            # Write summary
+            output_file.write(f"-- Migration Summary:\n")
+            output_file.write(f"-- Players exported: {player_count}\n")
+            output_file.write(f"-- Matches exported: {match_count}\n")
+            output_file.write(f"-- Total records: {player_count + match_count}\n")
         
-        # Migrate matches
-        if trueskill_games:
-            print("\nMigrating matches...")
-            match_migrated, match_skipped = migrate_matches(db, trueskill_games)
-        else:
-            match_migrated, match_skipped = 0, 0
-        
-        # Commit all changes
-        db.commit()
-        
-        print(f"\nMigration completed successfully!")
-        print(f"Players - New: {player_migrated}, Updated: {player_updated}")
-        print(f"Matches - New: {match_migrated}, Skipped: {match_skipped}")
-        print(f"Total processed: {player_migrated + player_updated + match_migrated}")
+        print(f"\nSQL export completed successfully!")
+        print(f"Output file: {filename}")
+        print(f"Players exported: {player_count}")
+        print(f"Matches exported: {match_count}")
+        print(f"Total records: {player_count + match_count}")
+        print(f"\nTo import into SQLite3:")
+        print(f"  sqlite3 your_database.db < {filename}")
         
         return 0
         
     except Exception as e:
-        db.rollback()
-        print(f"Error during migration: {e}")
+        print(f"Error during export: {e}")
         return 1
-    finally:
-        db.close()
 
 if __name__ == "__main__":
     exit_code = main()

@@ -241,7 +241,7 @@ async def match_history(ctx, user: discord.Member = None, limit: int = 5):
 ### Voice Channel Structure
 ```
 Guild Voice Channels:
-├── 🎯 Waiting Room          # Players gather here (any number 1+)
+├── Waiting Room          # Players gather here (any number 1+)
 ├── 🔴 Team 1 Voice          # Auto-created team channels
 ├── 🔵 Team 2 Voice          # Auto-created team channels (if 2+ teams)
 ├── 🟢 Team 3 Voice          # Auto-created team channels (if 3+ teams)
@@ -533,7 +533,7 @@ MAX_PLAYERS = int(os.environ.get("MAX_PLAYERS", "24"))
 PROPOSAL_TIMEOUT = int(os.environ.get("PROPOSAL_TIMEOUT", "300"))  # 5 minutes
 
 # Voice Channel Names
-WAITING_ROOM_NAME = os.environ.get("WAITING_ROOM_NAME", "🎯 Waiting Room")
+WAITING_ROOM_NAME = os.environ.get("WAITING_ROOM_NAME", "Waiting Room")
 TEAM_CHANNEL_PREFIX = os.environ.get("TEAM_CHANNEL_PREFIX", "Team")
 ```
 

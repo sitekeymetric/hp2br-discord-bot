@@ -13,7 +13,7 @@ class Config:
     PROPOSAL_TIMEOUT = int(os.environ.get("PROPOSAL_TIMEOUT", "300"))  # 5 minutes
     
     # Voice Channel Names
-    WAITING_ROOM_NAME = os.environ.get("WAITING_ROOM_NAME", "🎯 Waiting Room")
+    WAITING_ROOM_NAME = os.environ.get("WAITING_ROOM_NAME", "Waiting Room")
     TEAM_CHANNEL_PREFIX = os.environ.get("TEAM_CHANNEL_PREFIX", "Team")
     
     # Rating System

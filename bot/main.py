@@ -140,7 +140,7 @@ async def help_command(interaction: discord.Interaction):
     
     embed.add_field(
         name="📝 How to Use",
-        value="1. Players join the **🎯 Waiting Room** voice channel\n"
+        value="1. Players join the **Waiting Room** voice channel\n"
               "2. Use `/create_teams` to generate balanced teams\n"
               "3. Players are moved to team voice channels\n"
               "4. After the match, use `/record_result` to update ratings",
@@ -174,7 +174,7 @@ async def getting_started(interaction: discord.Interaction):
     
     embed.add_field(
         name="2️⃣ Joining a Match",
-        value="• Join the **🎯 Waiting Room** voice channel\n"
+        value="• Join the **Waiting Room** voice channel\n"
               "• Wait for others to join (need at least 6 players)\n"
               "• Someone with permissions uses `/create_teams`\n"
               "• Vote ✅ to accept or ❌ to decline the team proposal",

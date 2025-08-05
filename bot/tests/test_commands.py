@@ -219,7 +219,7 @@ class TestVoiceManager:
         
         # Mock waiting room with members
         waiting_room = MagicMock()
-        waiting_room.name = "🎯 Waiting Room"
+        waiting_room.name = "Waiting Room"
         waiting_room.members = [
             MockMember(1, "Player1"),
             MockMember(2, "Player2"),
@@ -245,7 +245,7 @@ class TestVoiceManager:
         
         # Mock waiting room
         waiting_room = MagicMock()
-        waiting_room.name = "🎯 Waiting Room"
+        waiting_room.name = "Waiting Room"
         
         # Mock bot permissions
         permissions = MagicMock()
