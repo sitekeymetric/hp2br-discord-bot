@@ -17,7 +17,7 @@ class UserCommands(commands.Cog):
         self.bot = bot
     
     @app_commands.command(name="register", description="Register yourself in the team balance system")
-    @app_commands.describe(region="Your region (NA, EU, AS, OCE, SA, AF, ME)")
+    @app_commands.describe(region="Your region (CA, TX, NY, KR, NA, EU)")
     async def register(self, interaction: discord.Interaction, region: Optional[str] = None):
         """Register user in the database system"""
         await interaction.response.defer()
@@ -124,7 +124,7 @@ class UserCommands(commands.Cog):
             await interaction.followup.send(embed=embed, ephemeral=True)
     
     @app_commands.command(name="set_region", description="Update your region")
-    @app_commands.describe(region="Your region (NA, EU, AS, OCE, SA, AF, ME)")
+    @app_commands.describe(region="Your region (CA, TX, NY, KR, NA, EU)")
     async def set_region(self, interaction: discord.Interaction, region: str):
         """Update user's region preference"""
         await interaction.response.defer(ephemeral=True)
@@ -273,6 +273,89 @@ class UserCommands(commands.Cog):
                 "Failed to retrieve match history. Please try again later."
             )
             await interaction.followup.send(embed=embed, ephemeral=True)
+    
+
+    @app_commands.command(name="delete_account", description="Delete your account from the system")
+    async def delete_account(self, interaction: discord.Interaction):
+        """Delete user's account with confirmation"""
+        await interaction.response.defer(ephemeral=True)
+        
+        try:
+            # Check if user exists
+            user_data = await api_client.get_user(interaction.guild.id, interaction.user.id)
+            
+            if not user_data:
+                embed = EmbedTemplates.warning_embed(
+                    "Not Registered",
+                    "You're not registered in the system, so there's nothing to delete."
+                )
+                await interaction.followup.send(embed=embed, ephemeral=True)
+                return
+            
+            # Create confirmation embed
+            embed = EmbedTemplates.warning_embed(
+                "⚠️ Delete Account Confirmation",
+                f"Are you sure you want to delete your account?\n\n"
+                f"**This will permanently remove:**\n"
+                f"• Your rating ({user_data['rating_mu']:.0f} ± {user_data['rating_sigma']:.0f})\n"
+                f"• Your statistics ({user_data['games_played']} games played)\n"
+                f"• Your match history\n\n"
+                f"**This action cannot be undone!**"
+            )
+            
+            # Create confirmation view
+            from utils.views import ConfirmationView
+            view = ConfirmationView(timeout=30)
+            
+            await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+            
+            # Wait for user response
+            await view.wait()
+            
+            if view.value is None:
+                # Timeout
+                embed = EmbedTemplates.error_embed(
+                    "Timeout",
+                    "Account deletion cancelled due to timeout."
+                )
+                await interaction.edit_original_response(embed=embed, view=None)
+                return
+            
+            if not view.value:
+                # User cancelled
+                embed = EmbedTemplates.success_embed(
+                    "Cancelled",
+                    "Account deletion cancelled. Your account is safe!"
+                )
+                await interaction.edit_original_response(embed=embed, view=None)
+                return
+            
+            # User confirmed - delete account
+            success = await api_client.delete_user(interaction.guild.id, interaction.user.id)
+            
+            if success:
+                embed = EmbedTemplates.success_embed(
+                    "Account Deleted",
+                    "Your account has been successfully deleted from the system.\n"
+                    "You can register again anytime using `/register`."
+                )
+                await interaction.edit_original_response(embed=embed, view=None)
+                
+                logger.info(f"User {interaction.user.display_name} ({interaction.user.id}) deleted their account")
+            else:
+                embed = EmbedTemplates.error_embed(
+                    "Deletion Failed",
+                    "Failed to delete your account. Please try again later or contact an administrator."
+                )
+                await interaction.edit_original_response(embed=embed, view=None)
+                
+        except Exception as e:
+            logger.error(f"Error in delete_account command: {e}")
+            embed = EmbedTemplates.error_embed(
+                "Deletion Error",
+                "An error occurred while deleting your account. Please try again later."
+            )
+            await interaction.edit_original_response(embed=embed, view=None)
 
 async def setup(bot):
     await bot.add_cog(UserCommands(bot))

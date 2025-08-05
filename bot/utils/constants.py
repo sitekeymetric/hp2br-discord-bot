@@ -36,7 +36,7 @@ class Config:
     MATCH_CLEANUP_DELAY = 30     # 30 seconds
 
 # Region codes for validation
-VALID_REGIONS = ["NA", "EU", "AS", "OCE", "SA", "AF", "ME"]
+VALID_REGIONS = ["CA", "TX", "NY", "KR", "NA", "EU"]
 
 # Team emojis for display
 TEAM_EMOJIS = ["🔴", "🔵", "🟢", "🟡", "🟠", "🟣"]

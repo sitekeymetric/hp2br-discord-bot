@@ -93,7 +93,7 @@ class User(Base):
     
     # Profile Data
     username = Column(String(100), nullable=False)
-    region_code = Column(String(10), nullable=True)  # NA, EU, AS, OCE, etc.
+    region_code = Column(String(10), nullable=True)  # CA, TX, NY, KR, NA, EU
     
     # Rating System (Glicko-2)
     rating_mu = Column(Float, default=1500.0, nullable=False)

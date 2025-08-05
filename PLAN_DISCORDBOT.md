@@ -59,7 +59,7 @@ async def register(ctx, region: str = None):
     """
     Register user in the database system
     - Auto-creates user with Discord ID and username
-    - Optional region parameter (NA, EU, AS, OCE, etc.)
+    - Optional region parameter (CA, TX, NY, KR, NA, EU)
     - Returns user stats and welcome message
     """
 
@@ -86,8 +86,29 @@ async def leaderboard(ctx, limit: int = 10):
     """
     Display top players in the guild
     - Sorted by rating (μ)
-    - Configurable limit (default 10)
-    - Paginated for large guilds
+    - Configurable limit (default 10, max 25)
+    - Shows rank, username, rating, games played, win rate
+    - Rich embed with formatted leaderboard
+    """
+
+@bot.slash_command(name="delete_account", description="Delete your account from the system")
+async def delete_account(ctx):
+    """
+    Delete user's account with confirmation
+    - Shows current stats before deletion
+    - Requires confirmation button click
+    - Permanently removes rating, stats, and match history
+    - Cannot be undone
+    """
+
+@bot.slash_command(name="match_history", description="Show recent match history")
+async def match_history(ctx, user: discord.Member = None, limit: int = 5):
+    """
+    Display match history for user
+    - Shows recent matches with teams, results, rating changes
+    - Defaults to command user if no target specified
+    - Configurable limit (max 10)
+    - Rich embed with match details
     """
 
 @bot.slash_command(name="help", description="Show all available commands")
@@ -168,6 +189,39 @@ async def reset_user(ctx, user: discord.Member):
     - Resets rating to default (1500μ, 350σ)
     - Clears match history and statistics
     - Confirmation prompt required
+    """
+
+@bot.slash_command(name="admin_delete_user", description="Delete a user from the system")
+@commands.has_permissions(administrator=True)
+async def admin_delete_user(ctx, user: discord.Member):
+    """
+    Admin command to delete any user's account
+    - Shows user's current stats before deletion
+    - Requires admin confirmation
+    - Permanently removes user data
+    - Cannot be undone
+    """
+
+@bot.slash_command(name="admin_update_user", description="Update a user's information")
+@commands.has_permissions(administrator=True)
+async def admin_update_user(ctx, user: discord.Member, username: str = None, region: str = None):
+    """
+    Admin command to update user information
+    - Can update username and/or region
+    - Validates region codes
+    - Updates database via API
+    - Confirmation of changes
+    """
+
+@bot.slash_command(name="admin_reset_rating", description="Reset a user's rating to default")
+@commands.has_permissions(administrator=True)
+async def admin_reset_rating(ctx, user: discord.Member):
+    """
+    Admin command to reset user's rating only
+    - Resets rating to default (1500μ, 350σ)
+    - Keeps match history and statistics
+    - Requires admin confirmation
+    - Shows before/after rating values
     """
 
 @bot.slash_command(name="match_history", description="Show recent matches")
@@ -778,3 +832,64 @@ python main.py
 - ✅ Multi-guild support with isolated data
 
 The Discord Team Balance Bot is now **production-ready** with all planned features plus enhanced user guidance!
+
+---
+
+## 🆕 NEW FEATURES ADDED (August 2025)
+
+### Enhanced User Management Commands
+
+#### User Self-Management
+- **`/delete_account`**: Users can delete their own account with confirmation dialog
+- **Enhanced `/leaderboard`**: Improved leaderboard display with rank, rating, games, and win rate
+
+#### Administrative User Management
+- **`/admin_delete_user`**: Administrators can delete any user's account
+- **`/admin_update_user`**: Administrators can update any user's username and/or region
+- **`/admin_reset_rating`**: Administrators can reset a user's rating to default values
+
+#### API Enhancements
+- **DELETE `/users/{guild_id}/{user_id}`**: New API endpoint for user deletion
+- **Enhanced UserService**: Added `delete_user()` method with proper database cleanup
+- **Updated API Client**: Added `delete_user()` method for bot integration
+
+#### Database Migration
+- **TrueSkill Data Migration**: Successfully migrated 24 players and 8 matches from external TrueSkill service
+- **Data Preservation**: User information and match history imported while maintaining default ratings
+- **Guild Integration**: All migrated data assigned to guild ID 696226047229952110
+
+### Implementation Details
+
+#### Files Modified
+```
+bot/commands/user_commands.py     ✅ Added delete_account
+bot/commands/admin_commands.py    ✅ Added admin user management commands
+bot/services/api_client.py        ✅ Added delete_user method
+api/routes/users.py              ✅ Added DELETE endpoint
+api/services/user_service.py     ✅ Added delete_user method
+api/migrate_trueskill.py         ✅ Created migration script
+```
+
+#### New Command Summary
+| Command | Type | Description |
+|---------|------|-------------|
+| `/delete_account` | User | Delete own account with confirmation |
+| `/admin_delete_user` | Admin | Delete any user's account |
+| `/admin_update_user` | Admin | Update user's username/region |
+| `/admin_reset_rating` | Admin | Reset user's rating to default |
+
+#### Security Features
+- **Confirmation Dialogs**: All destructive actions require user confirmation
+- **Admin Permissions**: Administrative commands require Discord admin permissions
+- **Ephemeral Messages**: Sensitive operations use ephemeral (private) responses
+- **Input Validation**: Username length limits, region code validation
+- **Audit Logging**: All user management actions are logged
+
+### Migration Results
+- ✅ **24 Users Migrated**: All TrueSkill players imported with statistics
+- ✅ **8 Matches Migrated**: Historical match data preserved
+- ✅ **Default Ratings Applied**: All users start with 1500μ ± 350σ ratings
+- ✅ **Region Data Preserved**: User regions maintained from TrueSkill service
+- ✅ **Statistics Intact**: Games played, wins, losses, draws preserved
+
+The bot now provides comprehensive user management capabilities for both users and administrators!

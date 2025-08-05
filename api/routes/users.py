@@ -44,3 +44,11 @@ def update_user_rating(guild_id: int, user_id: int, new_mu: float, new_sigma: fl
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return user
+
+@router.delete("/{guild_id}/{user_id}")
+def delete_user(guild_id: int, user_id: int, db: Session = Depends(get_db)):
+    """Delete a user from the system"""
+    success = UserService.delete_user(db, guild_id, user_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {"message": "User deleted successfully"}

@@ -8,7 +8,7 @@ from services.api_client import api_client
 from services.voice_manager import VoiceManager
 from utils.embeds import EmbedTemplates
 from utils.views import ConfirmationView
-from utils.constants import Config
+from utils.constants import Config, VALID_REGIONS
 
 logger = logging.getLogger(__name__)
 
@@ -354,6 +354,273 @@ class AdminCommands(commands.Cog):
                 "An error occurred during cleanup. Please try again."
             )
             await interaction.followup.send(embed=embed, ephemeral=True)
+    
+    @app_commands.command(name="admin_delete_user", description="Delete a user from the system")
+    @app_commands.describe(user="The user to delete from the system")
+    @app_commands.default_permissions(administrator=True)
+    async def admin_delete_user(self, interaction: discord.Interaction, user: discord.Member):
+        """Admin command to delete a user"""
+        await interaction.response.defer(ephemeral=True)
+        
+        try:
+            # Check if user exists
+            user_data = await api_client.get_user(interaction.guild.id, user.id)
+            
+            if not user_data:
+                embed = EmbedTemplates.warning_embed(
+                    "User Not Found",
+                    f"{user.display_name} is not registered in the system."
+                )
+                await interaction.followup.send(embed=embed, ephemeral=True)
+                return
+            
+            # Create confirmation embed
+            embed = EmbedTemplates.warning_embed(
+                "⚠️ Admin Delete User Confirmation",
+                f"Are you sure you want to delete **{user.display_name}**'s account?\n\n"
+                f"**This will permanently remove:**\n"
+                f"• Their rating ({user_data['rating_mu']:.0f} ± {user_data['rating_sigma']:.0f})\n"
+                f"• Their statistics ({user_data['games_played']} games played)\n"
+                f"• Their match history\n\n"
+                f"**This action cannot be undone!**"
+            )
+            
+            # Create confirmation view
+            from utils.views import ConfirmationView
+            view = ConfirmationView(timeout=30)
+            
+            await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+            
+            # Wait for admin response
+            await view.wait()
+            
+            if view.value is None:
+                # Timeout
+                embed = EmbedTemplates.error_embed(
+                    "Timeout",
+                    "User deletion cancelled due to timeout."
+                )
+                await interaction.edit_original_response(embed=embed, view=None)
+                return
+            
+            if not view.value:
+                # Admin cancelled
+                embed = EmbedTemplates.success_embed(
+                    "Cancelled",
+                    "User deletion cancelled."
+                )
+                await interaction.edit_original_response(embed=embed, view=None)
+                return
+            
+            # Admin confirmed - delete user
+            success = await api_client.delete_user(interaction.guild.id, user.id)
+            
+            if success:
+                embed = EmbedTemplates.success_embed(
+                    "User Deleted",
+                    f"**{user.display_name}**'s account has been successfully deleted from the system."
+                )
+                await interaction.edit_original_response(embed=embed, view=None)
+                
+                logger.info(f"Admin {interaction.user.display_name} deleted user {user.display_name} ({user.id})")
+            else:
+                embed = EmbedTemplates.error_embed(
+                    "Deletion Failed",
+                    "Failed to delete the user. Please try again later."
+                )
+                await interaction.edit_original_response(embed=embed, view=None)
+                
+        except Exception as e:
+            logger.error(f"Error in admin_delete_user command: {e}")
+            embed = EmbedTemplates.error_embed(
+                "Deletion Error",
+                "An error occurred while deleting the user. Please try again later."
+            )
+            await interaction.edit_original_response(embed=embed, view=None)
+    
+    @app_commands.command(name="admin_update_user", description="Update a user's information")
+    @app_commands.describe(
+        user="The user to update",
+        username="New username (optional)",
+        region="New region (optional)"
+    )
+    @app_commands.default_permissions(administrator=True)
+    async def admin_update_user(self, interaction: discord.Interaction, 
+                               user: discord.Member,
+                               username: Optional[str] = None,
+                               region: Optional[str] = None):
+        """Admin command to update user information"""
+        await interaction.response.defer(ephemeral=True)
+        
+        # Validate inputs
+        if not username and not region:
+            embed = EmbedTemplates.error_embed(
+                "No Updates Specified",
+                "Please specify at least one field to update (username or region)."
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+            return
+        
+        # Validate region if provided
+        if region:
+            region = region.upper()
+            if region not in VALID_REGIONS:
+                embed = EmbedTemplates.error_embed(
+                    "Invalid Region",
+                    f"Valid regions are: {', '.join(VALID_REGIONS)}"
+                )
+                await interaction.followup.send(embed=embed, ephemeral=True)
+                return
+        
+        # Validate username if provided
+        if username and len(username) > 32:
+            embed = EmbedTemplates.error_embed(
+                "Username Too Long",
+                "Username must be 32 characters or less."
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+            return
+        
+        try:
+            # Check if user exists
+            user_data = await api_client.get_user(interaction.guild.id, user.id)
+            
+            if not user_data:
+                embed = EmbedTemplates.warning_embed(
+                    "User Not Found",
+                    f"{user.display_name} is not registered in the system."
+                )
+                await interaction.followup.send(embed=embed, ephemeral=True)
+                return
+            
+            # Prepare update data
+            update_data = {}
+            if username:
+                update_data['username'] = username.strip()
+            if region:
+                update_data['region_code'] = region
+            
+            # Update user
+            updated_user = await api_client.update_user(
+                guild_id=interaction.guild.id,
+                user_id=user.id,
+                **update_data
+            )
+            
+            if updated_user:
+                changes = []
+                if username:
+                    changes.append(f"Username: **{username.strip()}**")
+                if region:
+                    changes.append(f"Region: **{region}**")
+                
+                embed = EmbedTemplates.success_embed(
+                    "User Updated",
+                    f"Successfully updated **{user.display_name}**:\n" + "\n".join(changes)
+                )
+                await interaction.followup.send(embed=embed, ephemeral=True)
+                
+                logger.info(f"Admin {interaction.user.display_name} updated user {user.display_name}: {update_data}")
+            else:
+                embed = EmbedTemplates.error_embed(
+                    "Update Failed",
+                    "Failed to update the user. Please try again later."
+                )
+                await interaction.followup.send(embed=embed, ephemeral=True)
+                
+        except Exception as e:
+            logger.error(f"Error in admin_update_user command: {e}")
+            embed = EmbedTemplates.error_embed(
+                "Update Error",
+                "An error occurred while updating the user. Please try again later."
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+    
+    @app_commands.command(name="admin_reset_rating", description="Reset a user's rating to default")
+    @app_commands.describe(user="The user whose rating to reset")
+    @app_commands.default_permissions(administrator=True)
+    async def admin_reset_rating(self, interaction: discord.Interaction, user: discord.Member):
+        """Admin command to reset user's rating"""
+        await interaction.response.defer(ephemeral=True)
+        
+        try:
+            # Check if user exists
+            user_data = await api_client.get_user(interaction.guild.id, user.id)
+            
+            if not user_data:
+                embed = EmbedTemplates.warning_embed(
+                    "User Not Found",
+                    f"{user.display_name} is not registered in the system."
+                )
+                await interaction.followup.send(embed=embed, ephemeral=True)
+                return
+            
+            # Create confirmation embed
+            embed = EmbedTemplates.warning_embed(
+                "⚠️ Reset Rating Confirmation",
+                f"Are you sure you want to reset **{user.display_name}**'s rating?\n\n"
+                f"**Current Rating:** {user_data['rating_mu']:.0f} ± {user_data['rating_sigma']:.0f}\n"
+                f"**New Rating:** 1500 ± 350 (default)\n\n"
+                f"This action cannot be undone!"
+            )
+            
+            # Create confirmation view
+            from utils.views import ConfirmationView
+            view = ConfirmationView(timeout=30)
+            
+            await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+            
+            # Wait for admin response
+            await view.wait()
+            
+            if view.value is None:
+                # Timeout
+                embed = EmbedTemplates.error_embed(
+                    "Timeout",
+                    "Rating reset cancelled due to timeout."
+                )
+                await interaction.edit_original_response(embed=embed, view=None)
+                return
+            
+            if not view.value:
+                # Admin cancelled
+                embed = EmbedTemplates.success_embed(
+                    "Cancelled",
+                    "Rating reset cancelled."
+                )
+                await interaction.edit_original_response(embed=embed, view=None)
+                return
+            
+            # Admin confirmed - reset rating
+            success = await api_client.update_user_rating(
+                guild_id=interaction.guild.id,
+                user_id=user.id,
+                new_mu=1500.0,
+                new_sigma=350.0
+            )
+            
+            if success:
+                embed = EmbedTemplates.success_embed(
+                    "Rating Reset",
+                    f"**{user.display_name}**'s rating has been reset to default (1500 ± 350)."
+                )
+                await interaction.edit_original_response(embed=embed, view=None)
+                
+                logger.info(f"Admin {interaction.user.display_name} reset rating for user {user.display_name} ({user.id})")
+            else:
+                embed = EmbedTemplates.error_embed(
+                    "Reset Failed",
+                    "Failed to reset the user's rating. Please try again later."
+                )
+                await interaction.edit_original_response(embed=embed, view=None)
+                
+        except Exception as e:
+            logger.error(f"Error in admin_reset_rating command: {e}")
+            embed = EmbedTemplates.error_embed(
+                "Reset Error",
+                "An error occurred while resetting the rating. Please try again later."
+            )
+            await interaction.edit_original_response(embed=embed, view=None)
 
 async def setup(bot):
     await bot.add_cog(AdminCommands(bot))

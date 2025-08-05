@@ -73,3 +73,14 @@ class UserService:
         db.commit()
         db.refresh(user)
         return user
+    
+    @staticmethod
+    def delete_user(db: Session, guild_id: int, user_id: int) -> bool:
+        """Delete a user from the database"""
+        user = UserService.get_user(db, guild_id, user_id)
+        if not user:
+            return False
+        
+        db.delete(user)
+        db.commit()
+        return True

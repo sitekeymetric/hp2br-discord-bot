@@ -114,7 +114,9 @@ async def help_command(interaction: discord.Interaction):
         value="• `/register [region]` - Register in the system\n"
               "• `/stats [@user]` - View player statistics\n"
               "• `/set_region <region>` - Update your region\n"
-              "• `/leaderboard [limit]` - Show top players",
+              "• `/leaderboard [limit]` - Show top players\n"
+              "• `/delete_account` - Delete your account\n"
+              "• `/match_history [@user]` - View match history",
         inline=False
     )
     
@@ -122,15 +124,17 @@ async def help_command(interaction: discord.Interaction):
         name="🎯 Team Commands",
         value="• `/create_teams [num_teams]` - Create balanced teams\n"
               "• `/record_result <winning_team>` - Record match result\n"
-              "• `/cancel_match` - Cancel current match\n"
-              "• `/match_history [@user]` - View match history",
+              "• `/cancel_match` - Cancel current match",
         inline=False
     )
     
     embed.add_field(
         name="⚙️ Admin Commands",
         value="• `/setup` - Initial bot setup\n"
-              "• `/reset_user <@user>` - Reset user's stats",
+              "• `/cleanup` - Clean up team channels\n"
+              "• `/admin_delete_user <@user>` - Delete user account\n"
+              "• `/admin_update_user <@user>` - Update user info\n"
+              "• `/admin_reset_rating <@user>` - Reset user rating",
         inline=False
     )
     

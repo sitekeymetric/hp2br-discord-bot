@@ -96,6 +96,11 @@ class APIClient:
         params = {"new_mu": new_mu, "new_sigma": new_sigma}
         return await self._make_request("PUT", f"/users/{guild_id}/{user_id}/rating", params=params)
     
+    async def delete_user(self, guild_id: int, user_id: int) -> bool:
+        """Delete a user from the database"""
+        result = await self._make_request("DELETE", f"/users/{guild_id}/{user_id}")
+        return result is not None
+    
     # Match Operations
     async def create_match(self, guild_id: int, created_by: int, total_teams: int) -> Optional[Dict]:
         """Create a new match"""

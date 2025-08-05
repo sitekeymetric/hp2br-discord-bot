@@ -42,7 +42,7 @@ Users:
   - guild_id (bigint) - Discord server ID
   - user_id (bigint) - Discord user ID  
   - username (varchar) - Current Discord username
-  - region_code (varchar) - User's region (NA, EU, AS, OCE, etc.)
+  - region_code (varchar) - User's region (CA, TX, NY, KR, NA, EU)
   - rating_mu (float) - Glicko-2 skill rating
   - rating_sigma (float) - Glicko-2 uncertainty
   - games_played (int) - Total matches participated
@@ -133,7 +133,7 @@ Match_Players:
 
 ### MVP Bot Features
 - `/register [region]` - Register user in system with optional region
-- `/set_region <region_code>` - Update user's region (NA, EU, AS, etc.)
+- `/set_region <region_code>` - Update user's region (CA, TX, NY, KR, NA, EU)
 - `/stats [@user]` - Show user stats
 - `/create_teams` - Generate teams from waiting room
 - `/record_result <winning_team>` - Record match outcome
@@ -431,3 +431,12 @@ python main.py
 - **api/**: OpenAPI documentation available at http://localhost:8000/docs
 
 **The Discord Team Balance Bot project is now complete and ready for production use!** 🎮
+
+## 📝 Changelog
+
+### 2025-08-05 - Region System Update
+- **Updated Valid Regions**: Changed from global regions (NA, EU, AS, OCE, SA, AF, ME) to specific regions (CA, TX, NY, KR, NA, EU)
+- **Files Modified**:
+  - `bot/utils/constants.py`: Updated `VALID_REGIONS` list
+  - `bot/commands/user_commands.py`: Updated command descriptions for `/register` and `/set_region`
+- **Impact**: Users can now select from 6 specific regions: CA (California), TX (Texas), NY (New York), KR (Korea), NA (North America), EU (Europe)
