@@ -204,20 +204,9 @@ class TeamCommands(commands.Cog):
             )
             await interaction.followup.send(embed=embed, ephemeral=True)
     
-    @app_commands.command(name="record_result", description="Record match result and update ratings")
-    @app_commands.describe(
-        winning_team="The team that won (1, 2, 3, etc.) or leave empty for draw",
-        result_type="Type of result (win_loss or draw)"
-    )
-    @app_commands.choices(result_type=[
-        app_commands.Choice(name="Win/Loss", value="win_loss"),
-        app_commands.Choice(name="Draw", value="draw"),
-        app_commands.Choice(name="Cancel", value="cancelled")
-    ])
-    async def record_result(self, interaction: discord.Interaction, 
-                           winning_team: Optional[int] = None,
-                           result_type: str = "win_loss"):
-        """Record match outcome and update ratings"""
+    @app_commands.command(name="record_result", description="Record match result with interactive dialogue")
+    async def record_result(self, interaction: discord.Interaction):
+        """Record match outcome using interactive dialogue"""
         await interaction.response.defer()
         
         try:
@@ -226,7 +215,7 @@ class TeamCommands(commands.Cog):
             if not active_match:
                 embed = EmbedTemplates.warning_embed(
                     "No Active Match",
-                    "There's no active match to record results for."
+                    "There's no active match to record results for. Use `/create_teams` to start a new match."
                 )
                 await interaction.followup.send(embed=embed, ephemeral=True)
                 return
@@ -234,99 +223,60 @@ class TeamCommands(commands.Cog):
             match_id = active_match['match_id']
             teams = active_match['teams']
             
-            # Validate winning team if provided
-            if result_type == "win_loss":
-                if winning_team is None:
-                    embed = EmbedTemplates.error_embed(
-                        "Missing Winner",
-                        "Please specify which team won (1, 2, 3, etc.)"
-                    )
-                    await interaction.followup.send(embed=embed, ephemeral=True)
-                    return
-                
-                if winning_team < 1 or winning_team > len(teams):
-                    embed = EmbedTemplates.error_embed(
-                        "Invalid Team",
-                        f"Team number must be between 1 and {len(teams)}"
-                    )
-                    await interaction.followup.send(embed=embed, ephemeral=True)
-                    return
-            
-            # Record result in database
-            result_data = await api_client.record_match_result(
-                match_id=match_id,
-                result_type=result_type,
-                winning_team=winning_team
-            )
-            
-            if not result_data:
-                embed = EmbedTemplates.error_embed(
-                    "Database Error",
-                    "Failed to record match result. Please try again."
-                )
-                await interaction.followup.send(embed=embed, ephemeral=True)
-                return
-            
-            # Get updated match data for display
-            match_data = await api_client.get_match(match_id)
-            
-            # Create result embed
-            if result_type == "win_loss" and winning_team:
-                title = f"🏆 Team {winning_team} Wins!"
-                description = f"Congratulations to Team {winning_team}! Ratings have been updated."
-                color = Config.SUCCESS_COLOR
-            elif result_type == "draw":
-                title = "🤝 Match Draw"
-                description = "The match ended in a draw. Ratings have been updated."
-                color = Config.WARNING_COLOR
-            else:
-                title = "❌ Match Cancelled"
-                description = "The match was cancelled. No rating changes applied."
-                color = Config.ERROR_COLOR
-            
+            # Create result recording dialogue
             embed = discord.Embed(
-                title=title,
-                description=description,
-                color=color
+                title="📝 Record Match Results",
+                description="Select the result for each team using the dropdowns below.",
+                color=Config.EMBED_COLOR
             )
             
-            # Add team information
+            # Show team composition
             for i, team in enumerate(teams):
                 team_names = [player['username'] for player in team]
-                team_result = ""
-                
-                if result_type == "win_loss" and winning_team:
-                    if i + 1 == winning_team:
-                        team_result = " 🏆"
-                    else:
-                        team_result = " 💔"
-                elif result_type == "draw":
-                    team_result = " 🤝"
-                
                 embed.add_field(
-                    name=f"Team {i+1}{team_result}",
+                    name=f"Team {i+1}",
                     value="\n".join([f"• {name}" for name in team_names]),
                     inline=True
                 )
             
-            embed.set_footer(text="Match completed! Players can return to the waiting room.")
+            embed.add_field(
+                name="📋 Instructions",
+                value="• Select **Win** for the winning team\n• Select **Loss** for losing teams\n• Select **Draw** for all teams if it was a tie\n• Click **Submit Results** when done",
+                inline=False
+            )
             
-            await interaction.followup.send(embed=embed)
+            embed.set_footer(text="Results will be recorded and ratings updated automatically.")
             
-            # Clean up voice channels and return players to waiting room
-            await asyncio.sleep(2)  # Give people time to see the result
-            await self.voice_manager.cleanup_team_channels(interaction.guild, return_to_waiting=True)
+            # Create the interactive view
+            from utils.views import MatchResultView
+            view = MatchResultView(teams=teams, match_id=match_id)
             
-            # Clear active match
-            self.voice_manager.clear_active_match(interaction.guild.id)
+            await interaction.followup.send(embed=embed, view=view)
             
-            logger.info(f"Match {match_id} completed with result: {result_type}, winner: {winning_team}")
+            # Wait for results to be submitted
+            await view.wait()
+            
+            # If results were submitted, clean up
+            if view.result_sent:
+                # Clean up voice channels and return players to waiting room
+                await asyncio.sleep(2)  # Give people time to see the result
+                await self.voice_manager.cleanup_team_channels(interaction.guild, return_to_waiting=True)
+                
+                # Clear active match
+                self.voice_manager.clear_active_match(interaction.guild.id)
+            else:
+                # Timeout occurred
+                embed_timeout = EmbedTemplates.warning_embed(
+                    "Result Recording Timeout",
+                    "The result recording dialogue timed out. Use `/record_result` to try again."
+                )
+                await interaction.followup.send(embed=embed_timeout, ephemeral=True)
             
         except Exception as e:
             logger.error(f"Error in record_result command: {e}")
             embed = EmbedTemplates.error_embed(
                 "Result Recording Error",
-                "An error occurred while recording the match result. Please try again."
+                "An error occurred while setting up result recording. Please try again."
             )
             await interaction.followup.send(embed=embed, ephemeral=True)
     

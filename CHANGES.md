@@ -3,6 +3,17 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v1.5.0-build.1 - 2025-08-05
+
+### Changes
+- Enhanced /record_result with interactive dialogue: dropdown selections for each team (win/loss/draw) with validation
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-05T15:18:12.782363
+
+---
+
 ## v1.4.0-build.1 - 2025-08-05
 
 ### Changes

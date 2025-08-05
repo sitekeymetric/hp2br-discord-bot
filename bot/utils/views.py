@@ -284,6 +284,233 @@ class TeamProposalView(discord.ui.View):
         logger.info(f"Movement complete: {moved_count} moved, {len(failed_players)} failed")
         return moved_count > 0, moved_count, failed_players
 
+class MatchResultView(discord.ui.View):
+    """Interactive dialogue for recording match results with dropdowns for each team"""
+    
+    def __init__(self, teams: List[List[Dict]], match_id: str):
+        super().__init__(timeout=300)  # 5 minute timeout for result recording
+        self.teams = teams
+        self.match_id = match_id
+        self.team_results = {}  # Store each team's result
+        self.result_sent = False
+        
+        # Create dropdown for each team
+        for i, team in enumerate(teams):
+            team_names = [player['username'] for player in team]
+            team_display = f"Team {i+1}: {', '.join(team_names[:3])}"  # Show first 3 names
+            if len(team_names) > 3:
+                team_display += f" (+{len(team_names)-3} more)"
+            
+            dropdown = TeamResultSelect(
+                team_number=i+1,
+                team_display=team_display,
+                parent_view=self
+            )
+            self.add_item(dropdown)
+        
+        # Add submit button
+        self.add_item(SubmitResultsButton())
+    
+    def update_team_result(self, team_number: int, result: str):
+        """Update a team's result"""
+        self.team_results[team_number] = result
+        
+        # Check if all teams have results
+        if len(self.team_results) == len(self.teams):
+            # Enable submit button
+            for item in self.children:
+                if isinstance(item, SubmitResultsButton):
+                    item.disabled = False
+                    break
+    
+    def validate_results(self) -> tuple[bool, str]:
+        """Validate that the results make sense"""
+        if len(self.team_results) != len(self.teams):
+            return False, "Please select a result for all teams."
+        
+        wins = sum(1 for result in self.team_results.values() if result == "win")
+        losses = sum(1 for result in self.team_results.values() if result == "loss")
+        draws = sum(1 for result in self.team_results.values() if result == "draw")
+        
+        # Validation rules
+        if draws > 0:
+            # If any team has draw, all teams must have draw
+            if draws != len(self.teams):
+                return False, "If it's a draw, all teams must be marked as 'Draw'."
+        else:
+            # For win/loss, exactly one team should win, others should lose
+            if wins != 1:
+                return False, "Exactly one team must be marked as 'Win' (others as 'Loss')."
+            if losses != len(self.teams) - 1:
+                return False, "All non-winning teams must be marked as 'Loss'."
+        
+        return True, ""
+    
+    async def submit_results(self, interaction: discord.Interaction):
+        """Submit the match results"""
+        if self.result_sent:
+            await interaction.response.send_message("Results have already been submitted!", ephemeral=True)
+            return
+        
+        # Validate results
+        is_valid, error_msg = self.validate_results()
+        if not is_valid:
+            await interaction.response.send_message(f"❌ {error_msg}", ephemeral=True)
+            return
+        
+        self.result_sent = True
+        await interaction.response.defer()
+        
+        try:
+            # Import here to avoid circular imports
+            from services.api_client import api_client
+            
+            # Determine result type and winning team
+            if "draw" in self.team_results.values():
+                result_type = "draw"
+                winning_team = None
+            else:
+                result_type = "win_loss"
+                winning_team = None
+                for team_num, result in self.team_results.items():
+                    if result == "win":
+                        winning_team = team_num
+                        break
+            
+            # Record result in database
+            result_data = await api_client.record_match_result(
+                match_id=self.match_id,
+                result_type=result_type,
+                winning_team=winning_team
+            )
+            
+            if not result_data:
+                embed = discord.Embed(
+                    title="❌ Database Error",
+                    description="Failed to record match result. Please try again.",
+                    color=Config.ERROR_COLOR
+                )
+                await interaction.followup.send(embed=embed, ephemeral=True)
+                return
+            
+            # Create result embed
+            if result_type == "win_loss" and winning_team:
+                title = f"🏆 Team {winning_team} Wins!"
+                description = f"Congratulations to Team {winning_team}! Ratings have been updated."
+                color = Config.SUCCESS_COLOR
+            else:
+                title = "🤝 Match Draw"
+                description = "The match ended in a draw. Ratings have been updated."
+                color = Config.WARNING_COLOR
+            
+            embed = discord.Embed(
+                title=title,
+                description=description,
+                color=color
+            )
+            
+            # Add team information with results
+            for i, team in enumerate(self.teams):
+                team_names = [player['username'] for player in team]
+                team_result = self.team_results.get(i+1, "unknown")
+                
+                if team_result == "win":
+                    team_emoji = " 🏆"
+                elif team_result == "loss":
+                    team_emoji = " 💔"
+                else:  # draw
+                    team_emoji = " 🤝"
+                
+                embed.add_field(
+                    name=f"Team {i+1}{team_emoji}",
+                    value="\n".join([f"• {name}" for name in team_names]),
+                    inline=True
+                )
+            
+            embed.set_footer(text="Match completed! Players will be returned to the waiting room.")
+            
+            await interaction.followup.send(embed=embed)
+            
+            # Import voice manager and cleanup
+            # We'll need to get this from the parent command
+            logger.info(f"Match {self.match_id} completed with result: {result_type}, winner: {winning_team}")
+            
+        except Exception as e:
+            logger.error(f"Error submitting match results: {e}")
+            embed = discord.Embed(
+                title="❌ Error",
+                description=f"An error occurred while recording results: {str(e)[:200]}",
+                color=Config.ERROR_COLOR
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+        
+        # Disable all items
+        for item in self.children:
+            item.disabled = True
+        
+        await interaction.edit_original_response(view=self)
+
+class TeamResultSelect(discord.ui.Select):
+    """Dropdown for selecting a team's result"""
+    
+    def __init__(self, team_number: int, team_display: str, parent_view):
+        self.team_number = team_number
+        self.parent_view = parent_view
+        
+        options = [
+            discord.SelectOption(
+                label="Win",
+                value="win",
+                description=f"Team {team_number} won the match",
+                emoji="🏆"
+            ),
+            discord.SelectOption(
+                label="Loss",
+                value="loss", 
+                description=f"Team {team_number} lost the match",
+                emoji="💔"
+            ),
+            discord.SelectOption(
+                label="Draw",
+                value="draw",
+                description=f"Team {team_number} drew the match",
+                emoji="🤝"
+            )
+        ]
+        
+        super().__init__(
+            placeholder=f"Select result for {team_display}",
+            options=options,
+            min_values=1,
+            max_values=1
+        )
+    
+    async def callback(self, interaction: discord.Interaction):
+        """Handle team result selection"""
+        selected_result = self.values[0]
+        self.parent_view.update_team_result(self.team_number, selected_result)
+        
+        # Update placeholder to show selection
+        result_emoji = {"win": "🏆", "loss": "💔", "draw": "🤝"}[selected_result]
+        self.placeholder = f"Team {self.team_number}: {selected_result.title()} {result_emoji}"
+        
+        await interaction.response.edit_message(view=self.parent_view)
+
+class SubmitResultsButton(discord.ui.Button):
+    """Button to submit the match results"""
+    
+    def __init__(self):
+        super().__init__(
+            label="Submit Results",
+            style=discord.ButtonStyle.success,
+            emoji="📝",
+            disabled=True  # Disabled until all teams have results
+        )
+    
+    async def callback(self, interaction: discord.Interaction):
+        """Handle result submission"""
+        await self.view.submit_results(interaction)
+
 class PaginatedView(discord.ui.View):
     """Pagination for leaderboards and match history"""
     

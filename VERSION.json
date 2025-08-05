@@ -1,8 +1,8 @@
 {
   "major": 1,
-  "minor": 4,
+  "minor": 5,
   "patch": 0,
   "build": 1,
-  "last_updated": "2025-08-05T15:13:50.668027",
-  "description": "Improved UX: replaced Accept/Decline with Create Team/End Game buttons, removed timeout for persistent UI"
+  "last_updated": "2025-08-05T15:18:12.782363",
+  "description": "Enhanced /record_result with interactive dialogue: dropdown selections for each team (win/loss/draw) with validation"
 }
