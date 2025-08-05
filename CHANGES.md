@@ -3,6 +3,17 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v1.9.1-build.1 - 2025-08-05
+
+### Changes
+- Added flexibility for teams < 3 to report all losses (forfeit/incomplete matches) without requiring a winner
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-05T16:35:56.037963
+
+---
+
 ## v1.9.0-build.1 - 2025-08-05
 
 ### Changes

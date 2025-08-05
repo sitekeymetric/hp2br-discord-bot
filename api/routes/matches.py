@@ -109,6 +109,24 @@ def update_match_result(match_id: UUID, result_data: MatchResultUpdate, db: Sess
                 # Update user's stats (legacy - kept for compatibility)
                 UserService.update_user_stats(db, player.guild_id, player.user_id, "draw")
     
+    elif result_data.result_type == "forfeit":
+        # Handle forfeit scenario - all players lose, small rating decrease
+        for team_num, team_players in teams.items():
+            team_ratings = [Rating(p.rating_mu_before, p.rating_sigma_before) for p in team_players]
+            # Use 0.25 score for forfeit (worse than draw, but not as bad as full loss)
+            updated_ratings = GlickoRatingService.update_ratings(team_ratings, [0.25] * len(team_ratings))
+            
+            # Update database
+            for player, new_rating in zip(team_players, updated_ratings):
+                player.rating_mu_after = new_rating.mu
+                player.rating_sigma_after = new_rating.sigma
+                
+                # Update user's current rating (only from COMPLETED matches)
+                UserService.update_user_rating(db, player.guild_id, player.user_id, new_rating.mu, new_rating.sigma)
+                
+                # Update user's stats (legacy - kept for compatibility)
+                UserService.update_user_stats(db, player.guild_id, player.user_id, "loss")
+    
     db.commit()
     
     # Return success message with cleanup info

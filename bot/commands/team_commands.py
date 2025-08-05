@@ -302,9 +302,22 @@ class TeamCommands(commands.Cog):
                     inline=True
                 )
             
+            # Add instructions based on team count
+            if len(teams) < 3:
+                instructions = ("• Select **Win** for the winning team\n"
+                              "• Select **Loss** for losing teams\n"
+                              "• Select **Draw** for all teams if it was a tie\n"
+                              "• **For small matches**: All teams can be marked as **Loss** (forfeit/incomplete)\n"
+                              "• Click **Submit Results** when done")
+            else:
+                instructions = ("• Select **Win** for the winning team\n"
+                              "• Select **Loss** for losing teams\n"
+                              "• Select **Draw** for all teams if it was a tie\n"
+                              "• Click **Submit Results** when done")
+            
             embed.add_field(
                 name="📋 Instructions",
-                value="• Select **Win** for the winning team\n• Select **Loss** for losing teams\n• Select **Draw** for all teams if it was a tie\n• Click **Submit Results** when done",
+                value=instructions,
                 inline=False
             )
             

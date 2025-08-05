@@ -50,6 +50,7 @@ class MatchStatus(enum.Enum):
 class ResultType(enum.Enum):
     WIN_LOSS = "win_loss"
     DRAW = "draw"
+    FORFEIT = "forfeit"
     CANCELLED = "cancelled"
 
 class PlayerResult(enum.Enum):

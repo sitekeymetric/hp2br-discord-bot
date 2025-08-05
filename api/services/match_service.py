@@ -130,6 +130,9 @@ class MatchService:
                     player.result = PlayerResult.LOSS
             elif result_data.result_type == "draw":
                 player.result = PlayerResult.DRAW
+            elif result_data.result_type == "forfeit":
+                # All players lose in a forfeit (no winner)
+                player.result = PlayerResult.LOSS
             elif result_data.result_type == "cancelled":
                 player.result = PlayerResult.PENDING
         

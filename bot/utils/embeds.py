@@ -175,6 +175,9 @@ class EmbedTemplates:
         elif result_type == "draw":
             title = "🤝 Match Draw"
             color = Config.WARNING_COLOR
+        elif result_type == "forfeit":
+            title = "⚠️ Match Forfeit"
+            color = Config.WARNING_COLOR
         else:
             title = "❌ Match Cancelled"
             color = Config.ERROR_COLOR

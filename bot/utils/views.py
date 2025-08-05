@@ -272,11 +272,25 @@ class MatchResultView(discord.ui.View):
             if draws != len(self.teams):
                 return False, "If it's a draw, all teams must be marked as 'Draw'."
         else:
-            # For win/loss, exactly one team should win, others should lose
-            if wins != 1:
-                return False, "Exactly one team must be marked as 'Win' (others as 'Loss')."
-            if losses != len(self.teams) - 1:
-                return False, "All non-winning teams must be marked as 'Loss'."
+            # For teams < 3, allow flexibility: can have all losses (no winner)
+            if len(self.teams) < 3:
+                # Allow either:
+                # 1. Exactly one winner, others lose
+                # 2. All teams lose (forfeit/incomplete match)
+                if wins == 0 and losses == len(self.teams):
+                    # All losses - valid for < 3 teams (forfeit/incomplete)
+                    return True, ""
+                elif wins == 1 and losses == len(self.teams) - 1:
+                    # One winner, others lose - standard case
+                    return True, ""
+                else:
+                    return False, "For small matches: either one team wins (others lose) OR all teams lose (forfeit/incomplete)."
+            else:
+                # For 3+ teams, require exactly one winner
+                if wins != 1:
+                    return False, "Exactly one team must be marked as 'Win' (others as 'Loss')."
+                if losses != len(self.teams) - 1:
+                    return False, "All non-winning teams must be marked as 'Loss'."
         
         return True, ""
     
@@ -300,10 +314,17 @@ class MatchResultView(discord.ui.View):
             from services.api_client import api_client
             
             # Determine result type and winning team
+            wins = sum(1 for result in self.team_results.values() if result == "win")
+            
             if "draw" in self.team_results.values():
                 result_type = "draw"
                 winning_team = None
+            elif wins == 0:
+                # All losses - forfeit/incomplete match (valid for < 3 teams)
+                result_type = "forfeit"
+                winning_team = None
             else:
+                # Standard win/loss
                 result_type = "win_loss"
                 winning_team = None
                 for team_num, result in self.team_results.items():
