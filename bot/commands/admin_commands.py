@@ -219,15 +219,15 @@ class AdminCommands(commands.Cog):
             )
             await interaction.followup.send(embed=embed, ephemeral=True)
     
-    @app_commands.command(name="guild_stats", description="Show guild statistics")
+    @app_commands.command(name="guild_stats", description="Show guild statistics (based on completed matches only)")
     @app_commands.default_permissions(administrator=True)
     async def guild_stats(self, interaction: discord.Interaction):
-        """Display guild-wide statistics"""
+        """Display guild-wide statistics based only on COMPLETED matches"""
         await interaction.response.defer()
         
         try:
-            # Get all users in guild
-            users = await api_client.get_guild_users(interaction.guild.id)
+            # Get all users in guild with completed match statistics
+            users = await api_client.get_guild_users_completed_stats(interaction.guild.id)
             
             if not users:
                 embed = EmbedTemplates.warning_embed(
@@ -237,9 +237,9 @@ class AdminCommands(commands.Cog):
                 await interaction.followup.send(embed=embed)
                 return
             
-            # Calculate statistics
+            # Calculate statistics from completed matches only
             total_players = len(users)
-            total_games = sum(user.get('games_played', 0) for user in users)
+            total_games = sum(user.get('games_played', 0) for user in users)  # From completed matches
             active_players = len([u for u in users if u.get('games_played', 0) > 0])
             
             # Rating statistics
@@ -248,12 +248,13 @@ class AdminCommands(commands.Cog):
             highest_rating = max(ratings) if ratings else 1500
             lowest_rating = min(ratings) if ratings else 1500
             
-            # Get recent matches
-            recent_matches = await api_client.get_guild_matches(interaction.guild.id, limit=10)
-            matches_today = len([m for m in recent_matches if m.get('status') == 'completed'])
+            # Get recent completed matches only
+            recent_matches = await api_client.get_guild_completed_matches(interaction.guild.id, limit=10)
+            completed_matches_count = len(recent_matches)
             
             embed = discord.Embed(
                 title=f"📊 Guild Statistics - {interaction.guild.name}",
+                description="Statistics based on **completed matches only**",
                 color=Config.EMBED_COLOR
             )
             
@@ -265,7 +266,7 @@ class AdminCommands(commands.Cog):
             
             embed.add_field(
                 name="🎮 Matches",
-                value=f"**Total Games:** {total_games}\n**Recent:** {matches_today}",
+                value=f"**Total Games:** {total_games}\n**Recent Completed:** {completed_matches_count}",
                 inline=True
             )
             
@@ -275,15 +276,15 @@ class AdminCommands(commands.Cog):
                 inline=True
             )
             
-            # Top players
+            # Top players based on completed matches
             if users:
                 top_users = sorted(users, key=lambda x: x.get('rating_mu', 0), reverse=True)[:5]
                 top_text = []
                 for i, user in enumerate(top_users):
                     username = user.get('username', 'Unknown')
                     rating = user.get('rating_mu', 1500)
-                    games = user.get('games_played', 0)
-                    top_text.append(f"{i+1}. {username} - {rating:.0f} ({games} games)")
+                    games = user.get('games_played', 0)  # From completed matches
+                    top_text.append(f"{i+1}. {username} - {rating:.0f} ({games} completed)")
                 
                 embed.add_field(
                     name="🏆 Top Players",
@@ -307,6 +308,13 @@ class AdminCommands(commands.Cog):
                 name=version_field["name"],
                 value=version_field["value"],
                 inline=version_field["inline"]
+            )
+            
+            # Add note about completed matches only
+            embed.add_field(
+                name="📊 Statistics Note",
+                value="All statistics are based on **completed matches only**.\nPending or cancelled matches are not included in these numbers.",
+                inline=False
             )
             
             await interaction.followup.send(embed=embed)

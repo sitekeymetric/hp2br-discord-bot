@@ -52,3 +52,16 @@ def delete_user(guild_id: int, user_id: int, db: Session = Depends(get_db)):
     if not success:
         raise HTTPException(status_code=404, detail="User not found")
     return {"message": "User deleted successfully"}
+
+@router.get("/{guild_id}/completed-stats")
+def get_guild_users_completed_stats(guild_id: int, db: Session = Depends(get_db)):
+    """Get all users in a guild with statistics based only on COMPLETED matches"""
+    return UserService.get_guild_users_with_completed_stats(db, guild_id)
+
+@router.get("/{guild_id}/{user_id}/completed-stats")
+def get_user_completed_stats(guild_id: int, user_id: int, db: Session = Depends(get_db)):
+    """Get specific user with statistics based only on COMPLETED matches"""
+    user_stats = UserService.get_user_with_completed_stats(db, guild_id, user_id)
+    if not user_stats:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user_stats

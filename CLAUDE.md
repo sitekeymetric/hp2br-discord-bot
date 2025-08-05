@@ -3,5 +3,7 @@ Refer to PLAN_DATABASE.md for api and database changes
 Refer to PLAN_DISCORDBOT.md for the discord bot changes.
 Refer to CHANGES.md for version changes and details with time stamp.
 
-Every work should refer to appropriate plan and update the plan & changes file.
-Every update to code should increment the version (patches unless instructed for major or minor) so we can identify the application state.
+Every changes should be added to CHANGES.md with date & revision and what changes occurred.
+Database and API changes should update PLAN_DATABASE.md
+Discord bot changes should update PLAN_DISCORDBOT.md
+Every update to code should increment the patch version (unless instructed for major or minor) so we can identify the application state.

@@ -1,8 +1,8 @@
 {
   "major": 1,
-  "minor": 5,
+  "minor": 6,
   "patch": 0,
   "build": 1,
-  "last_updated": "2025-08-05T15:18:12.782363",
-  "description": "Enhanced /record_result with interactive dialogue: dropdown selections for each team (win/loss/draw) with validation"
+  "last_updated": "2025-08-05T15:43:14.061652",
+  "description": "Implemented COMPLETED-only statistics and automatic pending match cleanup during result recording"
 }

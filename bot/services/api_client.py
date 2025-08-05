@@ -87,9 +87,18 @@ class APIClient:
         return await self._make_request("PUT", f"/users/{guild_id}/{user_id}", json=data)
     
     async def get_guild_users(self, guild_id: int) -> List[Dict]:
-        """Get all users in a guild"""
+        """Get all users in a guild (legacy method)"""
         result = await self._make_request("GET", f"/users/{guild_id}")
         return result if result is not None else []
+    
+    async def get_guild_users_completed_stats(self, guild_id: int) -> List[Dict]:
+        """Get all users in a guild with statistics based only on COMPLETED matches"""
+        result = await self._make_request("GET", f"/users/{guild_id}/completed-stats")
+        return result if result is not None else []
+    
+    async def get_user_completed_stats(self, guild_id: int, user_id: int) -> Optional[Dict]:
+        """Get user with statistics based only on COMPLETED matches"""
+        return await self._make_request("GET", f"/users/{guild_id}/{user_id}/completed-stats")
     
     async def update_user_rating(self, guild_id: int, user_id: int, new_mu: float, new_sigma: float) -> Optional[Dict]:
         """Update user's rating (internal use)"""
@@ -125,9 +134,15 @@ class APIClient:
         return await self._make_request("GET", f"/matches/match/{match_id}")
     
     async def get_guild_matches(self, guild_id: int, limit: int = 50) -> List[Dict]:
-        """Get guild's match history"""
+        """Get guild's match history (all statuses)"""
         params = {"limit": limit}
         result = await self._make_request("GET", f"/matches/{guild_id}", params=params)
+        return result if result is not None else []
+    
+    async def get_guild_completed_matches(self, guild_id: int, limit: int = 50) -> List[Dict]:
+        """Get only completed matches for a guild (for statistics and ratings)"""
+        params = {"limit": limit}
+        result = await self._make_request("GET", f"/matches/{guild_id}/completed", params=params)
         return result if result is not None else []
     
     async def record_match_result(self, match_id: str, result_type: str, winning_team: int = None) -> Optional[Dict]:
@@ -143,9 +158,15 @@ class APIClient:
         return await self._make_request("DELETE", f"/matches/{match_id}")
     
     async def get_user_match_history(self, guild_id: int, user_id: int, limit: int = 20) -> List[Dict]:
-        """Get match history for a specific user"""
+        """Get match history for a specific user (all statuses)"""
         params = {"limit": limit}
         result = await self._make_request("GET", f"/matches/user/{guild_id}/{user_id}/history", params=params)
+        return result if result is not None else []
+    
+    async def get_user_completed_match_history(self, guild_id: int, user_id: int, limit: int = 20) -> List[Dict]:
+        """Get only completed match history for a specific user (for statistics and ratings)"""
+        params = {"limit": limit}
+        result = await self._make_request("GET", f"/matches/user/{guild_id}/{user_id}/completed", params=params)
         return result if result is not None else []
     
     # Utility Methods

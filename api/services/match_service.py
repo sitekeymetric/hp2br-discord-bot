@@ -22,9 +22,17 @@ class MatchService:
     
     @staticmethod
     def get_guild_matches(db: Session, guild_id: int, limit: int = 50) -> List[Match]:
-        """Get recent matches for a guild"""
+        """Get recent matches for a guild (all statuses)"""
         return db.query(Match).filter(
             Match.guild_id == guild_id
+        ).order_by(Match.created_at.desc()).limit(limit).all()
+    
+    @staticmethod
+    def get_guild_completed_matches(db: Session, guild_id: int, limit: int = 50) -> List[Match]:
+        """Get only completed matches for a guild"""
+        return db.query(Match).filter(
+            Match.guild_id == guild_id,
+            Match.status == MatchStatus.COMPLETED
         ).order_by(Match.created_at.desc()).limit(limit).all()
     
     @staticmethod
@@ -59,11 +67,53 @@ class MatchService:
         return db.query(MatchPlayer).filter(MatchPlayer.match_id == match_id).all()
     
     @staticmethod
+    def cleanup_pending_matches_for_players(db: Session, player_ids: List[int], guild_id: int) -> int:
+        """
+        Clean up pending matches for specific players involved in a new result recording
+        This prevents players from having multiple pending matches
+        """
+        if not player_ids:
+            return 0
+        
+        # Find pending matches that involve any of these players
+        pending_matches = db.query(Match).join(MatchPlayer).filter(
+            Match.status == MatchStatus.PENDING,
+            Match.guild_id == guild_id,
+            MatchPlayer.user_id.in_(player_ids)
+        ).distinct().all()
+        
+        cleanup_count = 0
+        for match in pending_matches:
+            # Cancel the pending match
+            match.status = MatchStatus.CANCELLED
+            match.result_type = ResultType.CANCELLED
+            match.end_time = datetime.utcnow()
+            
+            # Update all players in this match to cancelled state
+            match_players = db.query(MatchPlayer).filter(MatchPlayer.match_id == match.match_id).all()
+            for player in match_players:
+                player.result = PlayerResult.PENDING  # Keep as pending since never completed
+            
+            cleanup_count += 1
+        
+        if cleanup_count > 0:
+            db.commit()
+        
+        return cleanup_count
+    
+    @staticmethod
     def update_match_result(db: Session, match_id: UUID, result_data: MatchResultUpdate) -> Optional[Match]:
         """Update match result and player outcomes"""
         match = MatchService.get_match(db, match_id)
         if not match:
             return None
+        
+        # Get players involved in this match for cleanup
+        players = MatchService.get_match_players(db, match_id)
+        player_ids = [p.user_id for p in players]
+        
+        # Clean up any other pending matches for these players
+        cleanup_count = MatchService.cleanup_pending_matches_for_players(db, player_ids, match.guild_id)
         
         # Update match status
         match.status = MatchStatus.COMPLETED
@@ -72,7 +122,6 @@ class MatchService:
         match.end_time = datetime.utcnow()
         
         # Update player results
-        players = MatchService.get_match_players(db, match_id)
         for player in players:
             if result_data.result_type == "win_loss":
                 if player.team_number == result_data.winning_team:
@@ -110,8 +159,18 @@ class MatchService:
     
     @staticmethod
     def get_user_match_history(db: Session, guild_id: int, user_id: int, limit: int = 20) -> List[MatchPlayer]:
-        """Get match history for a specific user"""
+        """Get match history for a specific user (all statuses)"""
         return db.query(MatchPlayer).filter(
             MatchPlayer.guild_id == guild_id,
             MatchPlayer.user_id == user_id
         ).join(Match).order_by(Match.created_at.desc()).limit(limit).all()
+    
+    @staticmethod
+    def get_user_completed_match_history(db: Session, guild_id: int, user_id: int, limit: int = 20) -> List[MatchPlayer]:
+        """Get only completed match history for a specific user (for ratings and statistics)"""
+        return db.query(MatchPlayer).filter(
+            MatchPlayer.guild_id == guild_id,
+            MatchPlayer.user_id == user_id
+        ).join(Match).filter(
+            Match.status == MatchStatus.COMPLETED
+        ).order_by(Match.created_at.desc()).limit(limit).all()

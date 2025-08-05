@@ -57,8 +57,8 @@ class TeamBalancer:
         
         for member in members:
             try:
-                # Try to get existing user
-                user_data = await api_client.get_user(guild_id, member.id)
+                # Try to get existing user with completed match statistics
+                user_data = await api_client.get_user_completed_stats(guild_id, member.id)
                 
                 if not user_data:
                     # Auto-register user with default rating
@@ -68,6 +68,23 @@ class TeamBalancer:
                         user_id=member.id,
                         username=member.display_name
                     )
+                    
+                    # Convert to completed stats format for consistency
+                    if user_data:
+                        user_data = {
+                            'guild_id': user_data['guild_id'],
+                            'user_id': user_data['user_id'],
+                            'username': user_data['username'],
+                            'region_code': user_data.get('region_code'),
+                            'rating_mu': user_data['rating_mu'],
+                            'rating_sigma': user_data['rating_sigma'],
+                            'games_played': 0,  # New user has no completed matches
+                            'wins': 0,
+                            'losses': 0,
+                            'draws': 0,
+                            'created_at': user_data['created_at'],
+                            'last_updated': user_data['last_updated']
+                        }
                 
                 if user_data:
                     # Add Discord member reference for easier access

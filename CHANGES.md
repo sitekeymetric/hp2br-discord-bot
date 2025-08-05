@@ -3,6 +3,17 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v1.6.0-build.1 - 2025-08-05
+
+### Changes
+- Implemented COMPLETED-only statistics and automatic pending match cleanup during result recording
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-05T15:43:14.061652
+
+---
+
 ## v1.5.0-build.1 - 2025-08-05
 
 ### Changes

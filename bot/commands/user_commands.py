@@ -81,16 +81,17 @@ class UserCommands(commands.Cog):
             )
             await interaction.followup.send(embed=embed, ephemeral=True)
     
-    @app_commands.command(name="stats", description="Show player statistics")
+    @app_commands.command(name="stats", description="Show player statistics (based on completed matches only)")
     @app_commands.describe(user="The user to show stats for (defaults to yourself)")
     async def stats(self, interaction: discord.Interaction, user: Optional[discord.Member] = None):
-        """Display user statistics"""
+        """Display user statistics based only on COMPLETED matches"""
         await interaction.response.defer()
         
         target_user = user or interaction.user
         
         try:
-            user_data = await api_client.get_user(interaction.guild.id, target_user.id)
+            # Get user data with completed match statistics only
+            user_data = await api_client.get_user_completed_stats(interaction.guild.id, target_user.id)
             
             if not user_data:
                 if target_user == interaction.user:
@@ -106,8 +107,15 @@ class UserCommands(commands.Cog):
                 await interaction.followup.send(embed=embed, ephemeral=True)
                 return
             
-            # Create stats embed
+            # Create stats embed with completed match data
             embed = EmbedTemplates.user_stats_embed(user_data)
+            
+            # Add note about completed matches only
+            embed.add_field(
+                name="📊 Statistics Note",
+                value="Statistics shown are based on **completed matches only**.\nPending or cancelled matches are not included.",
+                inline=False
+            )
             
             # Set user avatar if available
             if target_user.avatar:
@@ -181,17 +189,18 @@ class UserCommands(commands.Cog):
             )
             await interaction.followup.send(embed=embed, ephemeral=True)
     
-    @app_commands.command(name="leaderboard", description="Show guild leaderboard")
+    @app_commands.command(name="leaderboard", description="Show guild leaderboard (based on completed matches only)")
     @app_commands.describe(limit="Number of players to show (default: 10, max: 25)")
     async def leaderboard(self, interaction: discord.Interaction, limit: Optional[int] = 10):
-        """Display top players in the guild"""
+        """Display top players in the guild based only on COMPLETED matches"""
         await interaction.response.defer()
         
         # Validate limit
         limit = max(1, min(limit, 25))
         
         try:
-            users = await api_client.get_guild_users(interaction.guild.id)
+            # Get users with completed match statistics only
+            users = await api_client.get_guild_users_completed_stats(interaction.guild.id)
             
             if not users:
                 embed = EmbedTemplates.warning_embed(
@@ -212,6 +221,13 @@ class UserCommands(commands.Cog):
                 guild_name=interaction.guild.name
             )
             
+            # Add note about completed matches only
+            embed.add_field(
+                name="📊 Leaderboard Note",
+                value="Rankings are based on **completed matches only**.\nPending or cancelled matches are not included.",
+                inline=False
+            )
+            
             await interaction.followup.send(embed=embed)
             
         except Exception as e:
@@ -222,23 +238,23 @@ class UserCommands(commands.Cog):
             )
             await interaction.followup.send(embed=embed, ephemeral=True)
     
-    @app_commands.command(name="match_history", description="Show recent match history")
+    @app_commands.command(name="match_history", description="Show recent completed match history")
     @app_commands.describe(
         user="The user to show history for (defaults to yourself)",
-        limit="Number of matches to show (default: 5, max: 10)"
+        limit="Number of completed matches to show (default: 5, max: 10)"
     )
     async def match_history(self, interaction: discord.Interaction, 
                            user: Optional[discord.Member] = None, 
                            limit: Optional[int] = 5):
-        """Display match history"""
+        """Display completed match history only"""
         await interaction.response.defer()
         
         target_user = user or interaction.user
         limit = max(1, min(limit, 10))
         
         try:
-            # Check if user is registered
-            user_data = await api_client.get_user(interaction.guild.id, target_user.id)
+            # Check if user is registered using completed stats
+            user_data = await api_client.get_user_completed_stats(interaction.guild.id, target_user.id)
             
             if not user_data:
                 embed = EmbedTemplates.warning_embed(
@@ -248,11 +264,23 @@ class UserCommands(commands.Cog):
                 await interaction.followup.send(embed=embed, ephemeral=True)
                 return
             
-            # Get match history
-            matches = await api_client.get_user_match_history(
+            # Get completed match history only
+            matches = await api_client.get_user_completed_match_history(
                 guild_id=interaction.guild.id,
                 user_id=target_user.id,
                 limit=limit
+            )
+            
+            embed = EmbedTemplates.match_history_embed(
+                matches=matches,
+                username=target_user.display_name
+            )
+            
+            # Add note about completed matches only
+            embed.add_field(
+                name="📊 History Note",
+                value="Only **completed matches** are shown.\nPending or cancelled matches are not included.",
+                inline=False
             )
             
             embed = EmbedTemplates.match_history_embed(

@@ -43,18 +43,19 @@ def get_match_players(match_id: UUID, db: Session = Depends(get_db)):
 
 @router.put("/{match_id}/result")
 def update_match_result(match_id: UUID, result_data: MatchResultUpdate, db: Session = Depends(get_db)):
-    """Record match result and update player ratings"""
+    """Record match result, update player ratings, and clean up pending matches for involved players"""
     match = MatchService.get_match(db, match_id)
     if not match:
         raise HTTPException(status_code=404, detail="Match not found")
     
-    # Update match result
+    # Get players involved in this match before updating
+    players = MatchService.get_match_players(db, match_id)
+    player_ids = [p.user_id for p in players]
+    
+    # Update match result (this includes cleanup of pending matches for these players)
     updated_match = MatchService.update_match_result(db, match_id, result_data)
     if not updated_match:
         raise HTTPException(status_code=400, detail="Failed to update match result")
-    
-    # Update player ratings
-    players = MatchService.get_match_players(db, match_id)
     
     # Group players by team
     teams = {}
@@ -84,10 +85,10 @@ def update_match_result(match_id: UUID, result_data: MatchResultUpdate, db: Sess
                 player.rating_mu_after = new_rating.mu
                 player.rating_sigma_after = new_rating.sigma
                 
-                # Update user's current rating
+                # Update user's current rating (only from COMPLETED matches)
                 UserService.update_user_rating(db, player.guild_id, player.user_id, new_rating.mu, new_rating.sigma)
                 
-                # Update user's stats
+                # Update user's stats (legacy - kept for compatibility)
                 result_str = "win" if team_num == result_data.winning_team else "loss"
                 UserService.update_user_stats(db, player.guild_id, player.user_id, result_str)
     
@@ -102,14 +103,32 @@ def update_match_result(match_id: UUID, result_data: MatchResultUpdate, db: Sess
                 player.rating_mu_after = new_rating.mu
                 player.rating_sigma_after = new_rating.sigma
                 
-                # Update user's current rating
+                # Update user's current rating (only from COMPLETED matches)
                 UserService.update_user_rating(db, player.guild_id, player.user_id, new_rating.mu, new_rating.sigma)
                 
-                # Update user's stats
+                # Update user's stats (legacy - kept for compatibility)
                 UserService.update_user_stats(db, player.guild_id, player.user_id, "draw")
     
     db.commit()
-    return {"message": "Match result updated successfully"}
+    
+    # Return success message with cleanup info
+    cleanup_count = 0  # The cleanup was already done in update_match_result
+    return {
+        "message": "Match result updated successfully",
+        "cleanup_performed": True,
+        "players_involved": len(player_ids),
+        "note": "Any pending matches for involved players have been automatically cancelled"
+    }
+
+@router.get("/{guild_id}/completed", response_model=List[MatchResponse])
+def get_guild_completed_matches(guild_id: int, limit: int = 50, db: Session = Depends(get_db)):
+    """Get only completed matches for a guild (for statistics and ratings)"""
+    return MatchService.get_guild_completed_matches(db, guild_id, limit)
+
+@router.get("/user/{guild_id}/{user_id}/completed", response_model=List[MatchPlayerResponse])
+def get_user_completed_match_history(guild_id: int, user_id: int, limit: int = 20, db: Session = Depends(get_db)):
+    """Get only completed match history for a specific user (for statistics and ratings)"""
+    return MatchService.get_user_completed_match_history(db, guild_id, user_id, limit)
 
 @router.delete("/{match_id}")
 def cancel_match(match_id: UUID, db: Session = Depends(get_db)):
