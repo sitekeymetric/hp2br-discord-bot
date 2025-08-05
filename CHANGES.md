@@ -3,6 +3,17 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v1.9.0-build.1 - 2025-08-05
+
+### Changes
+- Added /teammates command to show top teammates and win rates with each teammate
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-05T16:31:21.462716
+
+---
+
 ## v1.8.0-build.1 - 2025-08-05
 
 ### Changes

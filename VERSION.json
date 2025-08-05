@@ -1,8 +1,8 @@
 {
   "major": 1,
-  "minor": 8,
+  "minor": 9,
   "patch": 0,
   "build": 1,
-  "last_updated": "2025-08-05T16:27:01.738931",
-  "description": "Enhanced match history to show full dates (MM/DD/YY), use match completion time, and display rating changes"
+  "last_updated": "2025-08-05T16:31:21.462716",
+  "description": "Added /teammates command to show top teammates and win rates with each teammate"
 }

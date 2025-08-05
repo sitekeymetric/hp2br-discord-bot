@@ -385,5 +385,51 @@ class UserCommands(commands.Cog):
             )
             await interaction.edit_original_response(embed=embed, view=None)
 
+    @app_commands.command(name="teammates", description="Show your most frequent teammates and win rates")
+    @app_commands.describe(
+        user="The user to show teammates for (defaults to yourself)",
+        limit="Number of teammates to show (default: 5, max: 10)"
+    )
+    async def teammates(self, interaction: discord.Interaction, 
+                       user: Optional[discord.Member] = None, 
+                       limit: Optional[int] = 5):
+        """Show teammate statistics - most frequent teammates and win rates"""
+        await interaction.response.defer()
+        
+        try:
+            # Determine target user
+            target_user = user if user else interaction.user
+            
+            # Validate limit
+            if limit is None:
+                limit = 5
+            elif limit < 1:
+                limit = 1
+            elif limit > 10:
+                limit = 10
+            
+            # Get teammate statistics
+            teammate_stats = await api_client.get_user_teammate_stats(
+                guild_id=interaction.guild.id,
+                user_id=target_user.id,
+                limit=limit
+            )
+            
+            # Create embed
+            embed = EmbedTemplates.teammate_stats_embed(
+                teammate_stats=teammate_stats,
+                username=target_user.display_name
+            )
+            
+            await interaction.followup.send(embed=embed)
+            
+        except Exception as e:
+            logger.error(f"Error in teammates command: {e}")
+            embed = EmbedTemplates.error_embed(
+                "Teammates Error",
+                "An error occurred while fetching teammate statistics. Please try again later."
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+
 async def setup(bot):
     await bot.add_cog(UserCommands(bot))

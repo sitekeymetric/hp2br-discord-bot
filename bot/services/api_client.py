@@ -169,6 +169,12 @@ class APIClient:
         result = await self._make_request("GET", f"/matches/user/{guild_id}/{user_id}/completed", params=params)
         return result if result is not None else []
     
+    async def get_user_teammate_stats(self, guild_id: int, user_id: int, limit: int = 10) -> List[Dict]:
+        """Get teammate statistics for a user - most frequent teammates and win rates"""
+        params = {"limit": limit}
+        result = await self._make_request("GET", f"/users/{guild_id}/{user_id}/teammates", params=params)
+        return result if result is not None else []
+    
     # Utility Methods
     async def health_check(self) -> bool:
         """Check if API is accessible"""

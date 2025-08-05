@@ -65,3 +65,9 @@ def get_user_completed_stats(guild_id: int, user_id: int, db: Session = Depends(
     if not user_stats:
         raise HTTPException(status_code=404, detail="User not found")
     return user_stats
+
+@router.get("/{guild_id}/{user_id}/teammates")
+def get_user_teammate_stats(guild_id: int, user_id: int, limit: int = 10, db: Session = Depends(get_db)):
+    """Get teammate statistics for a user - most frequent teammates and win rates"""
+    teammate_stats = UserService.get_user_teammate_stats(db, guild_id, user_id, limit)
+    return teammate_stats

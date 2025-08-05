@@ -118,7 +118,8 @@ async def help_command(interaction: discord.Interaction):
               "• `/set_region <region>` - Update your region\n"
               "• `/leaderboard [limit]` - Show top players\n"
               "• `/delete_account` - Delete your account\n"
-              "• `/match_history [@user]` - View match history",
+              "• `/match_history [@user]` - View match history\n"
+              "• `/teammates [@user]` - View teammate statistics",
         inline=False
     )
     

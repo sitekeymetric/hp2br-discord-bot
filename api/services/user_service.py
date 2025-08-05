@@ -159,3 +159,76 @@ class UserService:
         db.delete(user)
         db.commit()
         return True
+    
+    @staticmethod
+    def get_user_teammate_stats(db: Session, guild_id: int, user_id: int, limit: int = 10):
+        """Get teammate statistics for a user - who they play with most and win rates"""
+        from sqlalchemy import func, and_, case
+        
+        # First, get all matches where the user participated and completed
+        user_matches = db.query(MatchPlayer.match_id, MatchPlayer.team_number, MatchPlayer.result).filter(
+            MatchPlayer.guild_id == guild_id,
+            MatchPlayer.user_id == user_id
+        ).join(Match).filter(
+            Match.status == MatchStatus.COMPLETED
+        ).all()
+        
+        # Create a dictionary to track teammate statistics
+        teammate_stats = {}
+        
+        for user_match_id, user_team_number, user_result in user_matches:
+            # Find all other players who were on the same team in this match
+            teammates_in_match = db.query(MatchPlayer).filter(
+                MatchPlayer.match_id == user_match_id,
+                MatchPlayer.team_number == user_team_number,
+                MatchPlayer.user_id != user_id,  # Exclude the user themselves
+                MatchPlayer.guild_id == guild_id
+            ).all()
+            
+            # Update statistics for each teammate
+            for teammate in teammates_in_match:
+                teammate_id = teammate.user_id
+                
+                if teammate_id not in teammate_stats:
+                    teammate_stats[teammate_id] = {
+                        'games_together': 0,
+                        'wins_together': 0,
+                        'losses_together': 0,
+                        'draws_together': 0
+                    }
+                
+                teammate_stats[teammate_id]['games_together'] += 1
+                
+                if user_result == PlayerResult.WIN:
+                    teammate_stats[teammate_id]['wins_together'] += 1
+                elif user_result == PlayerResult.LOSS:
+                    teammate_stats[teammate_id]['losses_together'] += 1
+                elif user_result == PlayerResult.DRAW:
+                    teammate_stats[teammate_id]['draws_together'] += 1
+        
+        # Convert to list and add user information
+        result = []
+        for teammate_id, stats in teammate_stats.items():
+            # Get teammate user info
+            teammate_user = db.query(User).filter(
+                User.guild_id == guild_id,
+                User.user_id == teammate_id
+            ).first()
+            
+            if teammate_user and stats['games_together'] > 0:
+                win_rate = (stats['wins_together'] / stats['games_together'] * 100)
+                
+                result.append({
+                    'teammate_id': teammate_id,
+                    'teammate_username': teammate_user.username,
+                    'games_together': stats['games_together'],
+                    'wins_together': stats['wins_together'],
+                    'losses_together': stats['losses_together'],
+                    'draws_together': stats['draws_together'],
+                    'win_rate': win_rate
+                })
+        
+        # Sort by games together (most frequent teammates first), then by win rate
+        result.sort(key=lambda x: (x['games_together'], x['win_rate']), reverse=True)
+        
+        return result[:limit]

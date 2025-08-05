@@ -346,7 +346,72 @@ class EmbedTemplates:
         embed.set_footer(text="🟢 Win | 🔴 Loss | 🟡 Draw | Numbers show rating change")
         
         return embed
-        embed.set_footer(text="🟢 Win | 🔴 Loss | 🟡 Draw | ⚪ Pending")
+    
+    @staticmethod
+    def teammate_stats_embed(teammate_stats: List[Dict], username: str = None) -> discord.Embed:
+        """Teammate statistics display showing most frequent teammates and win rates"""
+        title = f"🤝 Teammate Statistics"
+        if username:
+            title += f" - {username}"
+        
+        embed = discord.Embed(
+            title=title,
+            color=Config.EMBED_COLOR,
+            timestamp=datetime.utcnow()
+        )
+        
+        if not teammate_stats:
+            embed.description = "No teammate data found. Play some matches with other players to see statistics!"
+            embed.add_field(
+                name="ℹ️ Note",
+                value="Teammate statistics are based on completed matches only.",
+                inline=False
+            )
+            return embed
+        
+        # Create teammate list
+        teammate_text = []
+        for i, teammate in enumerate(teammate_stats, 1):
+            teammate_name = teammate['teammate_username']
+            games_together = teammate['games_together']
+            wins_together = teammate['wins_together']
+            win_rate = teammate['win_rate']
+            
+            # Win rate emoji
+            if win_rate >= 70:
+                rate_emoji = "🔥"  # Hot streak
+            elif win_rate >= 60:
+                rate_emoji = "✅"  # Good
+            elif win_rate >= 50:
+                rate_emoji = "⚖️"  # Balanced
+            elif win_rate >= 40:
+                rate_emoji = "⚠️"  # Below average
+            else:
+                rate_emoji = "❌"  # Poor
+            
+            teammate_text.append(
+                f"**{i}.** {teammate_name} {rate_emoji}\n"
+                f"   📊 {games_together} games • {win_rate:.1f}% win rate • {wins_together} wins"
+            )
+        
+        embed.description = "\n\n".join(teammate_text)
+        
+        # Add summary statistics
+        if teammate_stats:
+            total_games_with_teammates = sum(t['games_together'] for t in teammate_stats)
+            total_wins_with_teammates = sum(t['wins_together'] for t in teammate_stats)
+            overall_teammate_win_rate = (total_wins_with_teammates / total_games_with_teammates * 100) if total_games_with_teammates > 0 else 0
+            
+            embed.add_field(
+                name="📈 Summary",
+                value=f"**{len(teammate_stats)}** frequent teammates\n"
+                      f"**{total_games_with_teammates}** total games together\n"
+                      f"**{overall_teammate_win_rate:.1f}%** overall win rate with teammates",
+                inline=False
+            )
+        
+        # Add footer with explanation
+        embed.set_footer(text="🔥 70%+ | ✅ 60%+ | ⚖️ 50%+ | ⚠️ 40%+ | ❌ <40% win rate")
         
         return embed
     
