@@ -89,9 +89,17 @@ class EmbedTemplates:
     @staticmethod
     def team_proposal_embed(teams: List[List[Dict]], team_ratings: List[float], balance_score: float = 0.0) -> discord.Embed:
         """Team proposal with ratings and balance info"""
+        # Adjust title and description for single team
+        if len(teams) == 1:
+            title = "🎮 Single Team Setup"
+            description = "All players will be on the same team:"
+        else:
+            title = "🎮 Team Proposal"
+            description = "Here are the balanced teams:"
+            
         embed = discord.Embed(
-            title="🎮 Team Proposal",
-            description="Here are the balanced teams:",
+            title=title,
+            description=description,
             color=Config.EMBED_COLOR,
             timestamp=datetime.utcnow()
         )
@@ -105,14 +113,20 @@ class EmbedTemplates:
                 rating = player.get("rating_mu", 1500)
                 team_members.append(f"• {username} ({rating:.0f})")
             
+            # Adjust field name for single team
+            if len(teams) == 1:
+                field_name = f"{emoji} **Practice Team** (Avg: {avg_rating:.0f})"
+            else:
+                field_name = f"{emoji} **Team {i+1}** (Avg: {avg_rating:.0f})"
+            
             embed.add_field(
-                name=f"{emoji} **Team {i+1}** (Avg: {avg_rating:.0f})",
+                name=field_name,
                 value="\n".join(team_members),
                 inline=True
             )
         
-        # Add balance information
-        if balance_score > 0:
+        # Add balance information (skip for single team)
+        if len(teams) > 1 and balance_score > 0:
             balance_text = "Excellent" if balance_score < 50 else "Good" if balance_score < 100 else "Fair"
             embed.add_field(
                 name="⚖️ Balance",
@@ -120,7 +134,11 @@ class EmbedTemplates:
                 inline=False
             )
         
-        embed.set_footer(text="Vote below to accept or decline these teams. Expires in 5 minutes.")
+        # Adjust footer for single team
+        if len(teams) == 1:
+            embed.set_footer(text="Vote below to accept this setup. Expires in 5 minutes.")
+        else:
+            embed.set_footer(text="Vote below to accept or decline these teams. Expires in 5 minutes.")
         
         return embed
     

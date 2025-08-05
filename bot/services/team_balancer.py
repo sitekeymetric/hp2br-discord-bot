@@ -15,7 +15,7 @@ class TeamBalancer:
     
     async def create_balanced_teams(self, members: List[discord.Member], num_teams: int, guild_id: int) -> Tuple[List[List[Dict]], List[float], float]:
         """
-        Main balancing algorithm
+        Main balancing algorithm with special cases for small player counts
         Returns: (teams_with_data, team_ratings, balance_score)
         """
         if len(members) < Config.MIN_PLAYERS_FOR_TEAMS:
@@ -27,8 +27,20 @@ class TeamBalancer:
         # Get user ratings from database (auto-register if needed)
         players_with_ratings = await self._get_player_ratings(members, guild_id)
         
-        # Apply balancing algorithm
-        teams = self._snake_draft_balance(players_with_ratings, num_teams)
+        # Handle special cases for small player counts
+        if len(members) <= Config.SINGLE_TEAM_THRESHOLD:
+            # 1-4 players: Create single team
+            teams = [players_with_ratings]  # All players in one team
+            num_teams = 1
+            logger.info(f"Special case: {len(members)} players - creating single team")
+        elif len(members) == Config.TWO_TEAM_THRESHOLD:
+            # 5 players: Split 2:3
+            teams = self._split_five_players(players_with_ratings)
+            num_teams = 2
+            logger.info(f"Special case: 5 players - splitting 2:3")
+        else:
+            # 6+ players: Use normal balancing algorithm
+            teams = self._snake_draft_balance(players_with_ratings, num_teams)
         
         # Calculate team ratings and balance score
         team_ratings = [self._calculate_team_rating(team) for team in teams]
@@ -86,6 +98,33 @@ class TeamBalancer:
                 })
         
         return players_with_ratings
+    
+    def _split_five_players(self, players: List[Dict]) -> List[List[Dict]]:
+        """
+        Split 5 players into 2 teams (2:3 split)
+        Put the 2 highest rated players on one team, 3 lowest on the other
+        """
+        # Sort players by effective rating (mu - sigma for conservative estimate)
+        sorted_players = sorted(
+            players,
+            key=lambda p: p['rating_mu'] - (p['rating_sigma'] * 0.5),
+            reverse=True
+        )
+        
+        # Split: top 2 players vs bottom 3 players
+        team1 = sorted_players[:2]  # Top 2 players
+        team2 = sorted_players[2:]  # Bottom 3 players
+        
+        # Log team composition
+        team1_names = [p['username'] for p in team1]
+        team2_names = [p['username'] for p in team2]
+        team1_avg = sum(p['rating_mu'] for p in team1) / len(team1)
+        team2_avg = sum(p['rating_mu'] for p in team2) / len(team2)
+        
+        logger.info(f"Team 1 (2 players): {team1_names} (avg: {team1_avg:.1f})")
+        logger.info(f"Team 2 (3 players): {team2_names} (avg: {team2_avg:.1f})")
+        
+        return [team1, team2]
     
     def _snake_draft_balance(self, players: List[Dict], num_teams: int) -> List[List[Dict]]:
         """

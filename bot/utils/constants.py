@@ -21,9 +21,13 @@ class Config:
     DEFAULT_RATING_SIGMA = 350.0
     
     # Team Balancing
-    MIN_PLAYERS_FOR_TEAMS = 6
+    MIN_PLAYERS_FOR_TEAMS = 1  # Changed to allow special cases
     MAX_PLAYERS_PER_MATCH = 24
     DEFAULT_NUM_TEAMS = 3
+    
+    # Special case thresholds
+    SINGLE_TEAM_THRESHOLD = 4  # 1-4 players = single team
+    TWO_TEAM_THRESHOLD = 5     # 5 players = 2 teams (2:3 split)
     
     # UI Settings
     EMBED_COLOR = 0x2B5CE6  # Discord blue

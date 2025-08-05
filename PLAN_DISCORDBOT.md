@@ -834,6 +834,45 @@ bot/
 - **Intelligent Team Configuration**: Auto-determines optimal setup based on player count
 - **Configuration Warnings**: Clear messaging about suboptimal setups with recommendations
 - **Adaptive Voice Management**: Creates appropriate number of team channels
+- **✅ IMPLEMENTED: Special Cases for Small Groups**:
+  - **1-4 Players**: Single team mode for practice/warmup sessions
+  - **5 Players**: Smart 2:3 split (top 2 rated vs bottom 3 rated players)
+  - **6+ Players**: Normal balanced team creation with snake draft algorithm
+
+## 🎯 Special Cases Implementation (v1.2.0)
+
+### Small Player Count Handling
+The bot now intelligently handles small player groups with specialized logic:
+
+#### Single Team Mode (1-4 Players)
+```python
+# All players in one team for practice/warmup
+if player_count <= Config.SINGLE_TEAM_THRESHOLD:
+    teams = [all_players]  # Single team
+    special_case_msg = f"Special Case: {player_count} players - creating single team for practice/warmup"
+```
+
+#### 2:3 Split Mode (5 Players)
+```python
+# Balanced 2v3 split by rating
+if player_count == Config.TWO_TEAM_THRESHOLD:
+    sorted_players = sort_by_rating(players)
+    team1 = sorted_players[:2]  # Top 2 players
+    team2 = sorted_players[2:]  # Bottom 3 players
+    special_case_msg = "Special Case: 5 players - splitting into 2 teams (2:3)"
+```
+
+#### Normal Balancing (6+ Players)
+```python
+# Standard snake draft algorithm
+teams = snake_draft_balance(players, num_teams)
+```
+
+### UI Adaptations
+- **Contextual Embeds**: Different titles and descriptions based on team count
+- **Special Case Notifications**: Clear messaging explaining the configuration
+- **Adaptive Balance Display**: Skips balance scoring for single team scenarios
+- **Smart Channel Creation**: Creates appropriate number of team voice channels
 - **Flexible Rating System**: Handles single teams and asymmetric team configurations
 - **Smart Balance Compensation**: Puts stronger players on smaller teams in 2v3 scenarios
 

@@ -146,9 +146,12 @@ Match_Players:
 ### MVP Voice Channel Detection
 - Detect "Waiting Room" voice channel
 - Get list of connected players (1-24 players)
-- Validate minimum players for team creation
+- ✅ **ENHANCED**: Special case handling for small player counts
+  - 1-4 players: Single team for practice/warmup
+  - 5 players: 2:3 split (top 2 vs bottom 3 by rating)
+  - 6+ players: Normal balanced teams
 
-**MVP Deliverable**: ✅ COMPLETED - Advanced bot with comprehensive features
+**MVP Deliverable**: ✅ COMPLETED - Advanced bot with comprehensive features + special cases
 
 ### Implementation Summary
 - **Complete Command System**: User, team, admin commands with help system
@@ -156,6 +159,7 @@ Match_Players:
 - **Interactive UI**: Rich embeds, voting system, real-time feedback
 - **Seamless Integration**: Full API communication with error handling
 - **Enhanced User Experience**: Dual help system for all skill levels
+- **✅ NEW: Flexible Player Support**: Handles any number of players (1-24) with intelligent team configuration
 - **Production Ready**: Complete testing, documentation, and deployment guides
 
 ---
@@ -166,15 +170,26 @@ Match_Players:
 ### MVP Balancing Algorithm
 ```python
 def create_balanced_teams(players):
-    # Simple algorithm for MVP
-    sorted_players = sort_by_rating(players)
-    teams = distribute_snake_draft(sorted_players, num_teams=3)
-    return teams
+    # Enhanced algorithm with special cases
+    if len(players) <= 4:
+        # Single team for practice/warmup
+        return [players]
+    elif len(players) == 5:
+        # 2:3 split (top 2 vs bottom 3)
+        return split_five_players(players)
+    else:
+        # Normal snake draft for 6+ players
+        sorted_players = sort_by_rating(players)
+        teams = distribute_snake_draft(sorted_players, num_teams=3)
+        return teams
 ```
 
 ### MVP Balance Logic
-- **Primary**: Snake draft by rating (highest→lowest→lowest→highest)
-- **Teams**: 3-5 teams of 3-4 players each
+- **Special Cases**: 
+  - 1-4 players: Single team (no balancing needed)
+  - 5 players: 2:3 split by rating (top 2 vs bottom 3)
+- **Normal Cases (6+ players)**: Snake draft by rating (highest→lowest→lowest→highest)
+- **Teams**: Auto-determined based on player count
 - **Fallback**: Random distribution if ratings similar
 
 ### MVP Team Display

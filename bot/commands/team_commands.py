@@ -23,27 +23,10 @@ class TeamCommands(commands.Cog):
         self.team_balancer = TeamBalancer()
     
     @app_commands.command(name="create_teams", description="Create balanced teams from waiting room")
-    @app_commands.describe(num_teams="Number of teams to create (default: 3, max: 6)")
-    async def create_teams(self, interaction: discord.Interaction, num_teams: Optional[int] = Config.DEFAULT_NUM_TEAMS):
-        """Main team balancing functionality"""
+    @app_commands.describe(num_teams="Number of teams to create (default: auto, max: 6)")
+    async def create_teams(self, interaction: discord.Interaction, num_teams: Optional[int] = None):
+        """Main team balancing functionality with special cases for small player counts"""
         await interaction.response.defer()
-        
-        # Validate num_teams
-        if num_teams < 2:
-            embed = EmbedTemplates.error_embed(
-                "Invalid Team Count",
-                "Need at least 2 teams!"
-            )
-            await interaction.followup.send(embed=embed, ephemeral=True)
-            return
-        
-        if num_teams > 6:
-            embed = EmbedTemplates.error_embed(
-                "Too Many Teams",
-                "Maximum 6 teams allowed!"
-            )
-            await interaction.followup.send(embed=embed, ephemeral=True)
-            return
         
         try:
             # Check if there's already an active match
@@ -69,7 +52,7 @@ class TeamCommands(commands.Cog):
             if len(waiting_members) < Config.MIN_PLAYERS_FOR_TEAMS:
                 embed = EmbedTemplates.warning_embed(
                     "Not Enough Players",
-                    f"Need at least {Config.MIN_PLAYERS_FOR_TEAMS} players in the waiting room to create teams.\n"
+                    f"Need at least {Config.MIN_PLAYERS_FOR_TEAMS} player in the waiting room to create teams.\n"
                     f"Currently have {len(waiting_members)} players."
                 )
                 await interaction.followup.send(embed=embed)
@@ -84,15 +67,50 @@ class TeamCommands(commands.Cog):
                 await interaction.followup.send(embed=embed)
                 return
             
-            # Adjust team count if needed
-            min_teams_needed = max(2, (len(waiting_members) + 4) // 5)  # Rough estimate for balanced teams
-            if num_teams < min_teams_needed:
-                num_teams = min_teams_needed
-                logger.info(f"Adjusted team count to {num_teams} for {len(waiting_members)} players")
+            # Determine number of teams based on player count and special cases
+            player_count = len(waiting_members)
+            if player_count <= Config.SINGLE_TEAM_THRESHOLD:
+                # 1-4 players: Single team
+                actual_num_teams = 1
+                special_case_msg = f"**Special Case**: {player_count} players - creating single team for practice/warmup"
+            elif player_count == Config.TWO_TEAM_THRESHOLD:
+                # 5 players: 2 teams (2:3 split)
+                actual_num_teams = 2
+                special_case_msg = f"**Special Case**: 5 players - splitting into 2 teams (2:3)"
+            else:
+                # 6+ players: Use specified num_teams or default
+                if num_teams is None:
+                    actual_num_teams = Config.DEFAULT_NUM_TEAMS
+                else:
+                    actual_num_teams = num_teams
+                special_case_msg = None
+                
+                # Validate num_teams for normal cases
+                if actual_num_teams < 2:
+                    embed = EmbedTemplates.error_embed(
+                        "Invalid Team Count",
+                        "Need at least 2 teams for balanced matches!"
+                    )
+                    await interaction.followup.send(embed=embed, ephemeral=True)
+                    return
+                
+                if actual_num_teams > 6:
+                    embed = EmbedTemplates.error_embed(
+                        "Too Many Teams",
+                        "Maximum 6 teams allowed!"
+                    )
+                    await interaction.followup.send(embed=embed, ephemeral=True)
+                    return
+                
+                # Adjust team count if needed for balanced distribution
+                min_teams_needed = max(2, (len(waiting_members) + 4) // 5)  # Rough estimate for balanced teams
+                if actual_num_teams < min_teams_needed:
+                    actual_num_teams = min_teams_needed
+                    logger.info(f"Adjusted team count to {actual_num_teams} for {len(waiting_members)} players")
             
             # Create balanced teams
             teams, team_ratings, balance_score = await self.team_balancer.create_balanced_teams(
-                waiting_members, num_teams, interaction.guild.id
+                waiting_members, actual_num_teams, interaction.guild.id
             )
             
             # Validate teams
@@ -105,9 +123,9 @@ class TeamCommands(commands.Cog):
                 return
             
             # Create team voice channels
-            team_channels = await self.voice_manager.create_team_channels(interaction.guild, num_teams)
+            team_channels = await self.voice_manager.create_team_channels(interaction.guild, actual_num_teams)
             
-            if len(team_channels) != num_teams:
+            if len(team_channels) != actual_num_teams:
                 embed = EmbedTemplates.error_embed(
                     "Channel Creation Failed",
                     "Failed to create team voice channels. Please check bot permissions."
@@ -119,7 +137,7 @@ class TeamCommands(commands.Cog):
             match_data = await api_client.create_match(
                 guild_id=interaction.guild.id,
                 created_by=interaction.user.id,
-                total_teams=num_teams
+                total_teams=actual_num_teams
             )
             
             if not match_data:
@@ -133,7 +151,7 @@ class TeamCommands(commands.Cog):
                 return
             
             match_id = match_data['match_id']
-            logger.info(f"Created match {match_id} with {num_teams} teams")
+            logger.info(f"Created match {match_id} with {actual_num_teams} teams")
             
             # Add players to match in database
             for team_idx, team in enumerate(teams):
@@ -148,10 +166,18 @@ class TeamCommands(commands.Cog):
             # Create team proposal embed
             embed = EmbedTemplates.team_proposal_embed(teams, team_ratings, balance_score)
             
+            # Add special case message if applicable
+            if special_case_msg:
+                embed.insert_field_at(0, name="ℹ️ Special Configuration", value=special_case_msg, inline=False)
+            
             # Add match info
+            balance_text = 'Excellent' if balance_score < 50 else 'Good' if balance_score < 100 else 'Fair'
+            if actual_num_teams == 1:
+                balance_text = 'Single Team'  # No balance score for single team
+            
             embed.add_field(
                 name="📊 Match Info",
-                value=f"**Players:** {len(waiting_members)}\n**Teams:** {num_teams}\n**Balance:** {'Excellent' if balance_score < 50 else 'Good' if balance_score < 100 else 'Fair'}",
+                value=f"**Players:** {len(waiting_members)}\n**Teams:** {actual_num_teams}\n**Balance:** {balance_text}",
                 inline=True
             )
             
