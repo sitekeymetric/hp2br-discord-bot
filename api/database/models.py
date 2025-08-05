@@ -1,4 +1,4 @@
-from sqlalchemy import Column, BigInteger, String, Float, Integer, DateTime, Enum, Boolean, ForeignKey
+from sqlalchemy import Column, BigInteger, String, Float, Integer, DateTime, Enum, Boolean, ForeignKey, ForeignKeyConstraint
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
@@ -104,5 +104,5 @@ class MatchPlayer(Base):
     
     # Foreign Key Constraint
     __table_args__ = (
-        ForeignKey(['guild_id', 'user_id'], ['users.guild_id', 'users.user_id']),
+        ForeignKeyConstraint(['guild_id', 'user_id'], ['users.guild_id', 'users.user_id']),
     )

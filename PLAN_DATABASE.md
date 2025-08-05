@@ -610,6 +610,59 @@ api/
 └── requirements.txt       ✅ Python dependencies
 ```
 
+---
+
+## 🐛 Issues Encountered & Resolutions
+
+### Issue #1: SQLAlchemy Composite Foreign Key Constraint Error
+
+**Date**: August 5, 2025  
+**Error**: 
+```
+sqlalchemy.exc.ArgumentError: String column name or Column object for DDL foreign key constraint expected, got ['guild_id', 'user_id'].
+```
+
+**Root Cause**: 
+In the `MatchPlayer` model, attempted to use `ForeignKey` for a composite foreign key constraint, but `ForeignKey` only supports single-column references.
+
+**Original Code (Incorrect)**:
+```python
+class MatchPlayer(Base):
+    # ... other fields ...
+    
+    # Foreign Key Constraint
+    __table_args__ = (
+        ForeignKey(['guild_id', 'user_id'], ['users.guild_id', 'users.user_id']),
+    )
+```
+
+**Resolution**:
+1. **Changed `ForeignKey` to `ForeignKeyConstraint`** - For composite foreign keys (multiple columns), SQLAlchemy requires `ForeignKeyConstraint`
+2. **Added proper import** - Added `ForeignKeyConstraint` to the SQLAlchemy imports
+
+**Fixed Code**:
+```python
+# Import statement updated
+from sqlalchemy import Column, BigInteger, String, Float, Integer, DateTime, Enum, Boolean, ForeignKey, ForeignKeyConstraint
+
+class MatchPlayer(Base):
+    # ... other fields ...
+    
+    # Foreign Key Constraint
+    __table_args__ = (
+        ForeignKeyConstraint(['guild_id', 'user_id'], ['users.guild_id', 'users.user_id']),
+    )
+```
+
+**Key Learning**: 
+- `ForeignKey` = Single column foreign key references
+- `ForeignKeyConstraint` = Multi-column (composite) foreign key references
+- Always use `ForeignKeyConstraint` when referencing composite primary keys
+
+**Status**: ✅ **RESOLVED** - API server now starts successfully without SQLAlchemy errors
+
+---
+
 ### Ready for Next Phase
 The database API is fully functional and ready for:
 1. **Discord Bot Integration** (Phase 2)
@@ -619,6 +672,8 @@ The database API is fully functional and ready for:
 ### Quick Start
 ```bash
 cd api
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn main:app --reload
 ```
