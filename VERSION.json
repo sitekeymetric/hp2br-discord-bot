@@ -1,8 +1,8 @@
 {
   "major": 1,
-  "minor": 3,
-  "patch": 1,
+  "minor": 4,
+  "patch": 0,
   "build": 1,
-  "last_updated": "2025-08-05T15:07:12.664494",
-  "description": "Fixed team acceptance system: removed voting, extended timeout to 15 minutes, improved player movement error handling"
+  "last_updated": "2025-08-05T15:13:50.668027",
+  "description": "Improved UX: replaced Accept/Decline with Create Team/End Game buttons, removed timeout for persistent UI"
 }

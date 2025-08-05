@@ -134,11 +134,11 @@ class EmbedTemplates:
                 inline=False
             )
         
-        # Adjust footer for single team
+        # Adjust footer for different team configurations
         if len(teams) == 1:
-            embed.set_footer(text="Click Accept to proceed or Decline to regenerate. Expires in 15 minutes.")
+            embed.set_footer(text="Click 'Create Team' to proceed or 'End Game' to cancel.")
         else:
-            embed.set_footer(text="Click Accept to proceed or Decline to regenerate teams. Expires in 15 minutes.")
+            embed.set_footer(text="Click 'Create Team' to proceed or 'End Game' to cancel and return to waiting room.")
         
         return embed
     

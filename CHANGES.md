@@ -3,6 +3,17 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v1.4.0-build.1 - 2025-08-05
+
+### Changes
+- Improved UX: replaced Accept/Decline with Create Team/End Game buttons, removed timeout for persistent UI
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-05T15:13:50.668027
+
+---
+
 ## v1.3.1-build.1 - 2025-08-05
 
 ### Changes

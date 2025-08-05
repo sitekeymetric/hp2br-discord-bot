@@ -7,11 +7,11 @@ from utils.constants import Config
 logger = logging.getLogger(__name__)
 
 class TeamProposalView(discord.ui.View):
-    """Interactive buttons for team proposals - no voting, simple accept/decline"""
+    """Interactive buttons for team proposals - Create Team or End Game"""
     
     def __init__(self, teams: List[List[Dict]], team_channels: List[discord.VoiceChannel], 
-                 match_id: str, voice_manager, timeout: float = Config.TEAM_PROPOSAL_TIMEOUT):
-        super().__init__(timeout=timeout)
+                 match_id: str, voice_manager):
+        super().__init__(timeout=None)  # No timeout - buttons stay active
         self.teams = teams
         self.team_channels = team_channels
         self.match_id = match_id
@@ -26,9 +26,9 @@ class TeamProposalView(discord.ui.View):
         
         self.result_sent = False
     
-    @discord.ui.button(label='✅ Accept Teams', style=discord.ButtonStyle.success)
-    async def accept_teams(self, interaction: discord.Interaction, button: discord.ui.Button):
-        """Handle accept - any player can accept the teams"""
+    @discord.ui.button(label='🎮 Create Team', style=discord.ButtonStyle.success)
+    async def create_team(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Create the teams and move players"""
         user_id = interaction.user.id
         
         # Check if user is in the match
@@ -47,11 +47,11 @@ class TeamProposalView(discord.ui.View):
             return
         
         await interaction.response.defer()
-        await self._handle_accepted(interaction)
+        await self._handle_create_team(interaction)
     
-    @discord.ui.button(label='❌ Decline Teams', style=discord.ButtonStyle.danger)
-    async def decline_teams(self, interaction: discord.Interaction, button: discord.ui.Button):
-        """Handle decline - any player can decline the teams"""
+    @discord.ui.button(label='🛑 End Game', style=discord.ButtonStyle.danger)
+    async def end_game(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """End the game and cleanup (equivalent to /cleanup)"""
         user_id = interaction.user.id
         
         # Check if user is in the match
@@ -64,16 +64,16 @@ class TeamProposalView(discord.ui.View):
         
         if self.result_sent:
             await interaction.response.send_message(
-                "⚠️ Teams have already been processed!", 
+                "⚠️ Game has already been processed!", 
                 ephemeral=True
             )
             return
         
         await interaction.response.defer()
-        await self._handle_declined(interaction)
+        await self._handle_end_game(interaction)
     
-    async def _handle_accepted(self, interaction: discord.Interaction):
-        """Handle when teams are accepted"""
+    async def _handle_create_team(self, interaction: discord.Interaction):
+        """Handle team creation and player movement"""
         self.result_sent = True
         
         try:
@@ -101,7 +101,7 @@ class TeamProposalView(discord.ui.View):
                 })
                 
                 embed = discord.Embed(
-                    title="🎮 Teams Accepted!",
+                    title="🎮 Teams Created!",
                     description=f"Successfully moved {moved_count} players to their team channels. Good luck!",
                     color=Config.SUCCESS_COLOR
                 )
@@ -130,8 +130,8 @@ class TeamProposalView(discord.ui.View):
                 })
                 
                 embed = discord.Embed(
-                    title="⚠️ Teams Accepted - Manual Movement Required",
-                    description="Teams were accepted but players could not be moved automatically.",
+                    title="⚠️ Teams Created - Manual Movement Required",
+                    description="Teams were created but players could not be moved automatically.",
                     color=Config.WARNING_COLOR
                 )
                 embed.add_field(
@@ -155,15 +155,68 @@ class TeamProposalView(discord.ui.View):
                 await interaction.followup.send(embed=embed)
         
         except Exception as e:
-            logger.error(f"Error handling accepted teams: {e}")
+            logger.error(f"Error creating teams: {e}")
             embed = discord.Embed(
-                title="❌ Error Processing Teams",
-                description=f"Teams were accepted but an error occurred: {str(e)[:200]}",
+                title="❌ Error Creating Teams",
+                description=f"An error occurred while creating teams: {str(e)[:200]}",
                 color=Config.ERROR_COLOR
             )
             embed.add_field(
                 name="🔧 What to do:",
                 value="Please manually move players to team channels and use `/record_result` after the match.",
+                inline=False
+            )
+            await interaction.followup.send(embed=embed)
+        
+        # Disable all buttons
+        for item in self.children:
+            item.disabled = True
+        
+        await interaction.edit_original_response(view=self)
+    
+    async def _handle_end_game(self, interaction: discord.Interaction):
+        """Handle ending the game (equivalent to /cleanup)"""
+        self.result_sent = True
+        
+        try:
+            # Import api_client here to avoid circular imports
+            from services.api_client import api_client
+            
+            # Cancel the match in database
+            await api_client.cancel_match(self.match_id)
+            
+            # Clean up team channels and return players to waiting room
+            await self.voice_manager.cleanup_team_channels(
+                interaction.guild, 
+                return_to_waiting=True
+            )
+            
+            # Clear active match
+            self.voice_manager.clear_active_match(interaction.guild.id)
+            
+            embed = discord.Embed(
+                title="🛑 Game Ended",
+                description="The game has been ended and all players have been returned to the waiting room.",
+                color=Config.WARNING_COLOR
+            )
+            embed.add_field(
+                name="🔄 What's Next",
+                value="Use `/create_teams` to start a new match when ready.",
+                inline=False
+            )
+            
+            await interaction.followup.send(embed=embed)
+        
+        except Exception as e:
+            logger.error(f"Error ending game: {e}")
+            embed = discord.Embed(
+                title="❌ Error Ending Game",
+                description=f"An error occurred while ending the game: {str(e)[:200]}",
+                color=Config.ERROR_COLOR
+            )
+            embed.add_field(
+                name="🔧 Manual Cleanup",
+                value="You may need to use `/cleanup` command to manually clean up channels.",
                 inline=False
             )
             await interaction.followup.send(embed=embed)
@@ -230,55 +283,6 @@ class TeamProposalView(discord.ui.View):
         
         logger.info(f"Movement complete: {moved_count} moved, {len(failed_players)} failed")
         return moved_count > 0, moved_count, failed_players
-    
-    async def _handle_declined(self, interaction: discord.Interaction):
-        """Handle when teams are declined"""
-        self.result_sent = True
-        
-        try:
-            # Clean up team channels
-            await self.voice_manager.cleanup_team_channels(
-                interaction.guild, 
-                return_to_waiting=False  # Players are already in waiting room
-            )
-            
-            # Clear active match
-            self.voice_manager.clear_active_match(interaction.guild.id)
-            
-            embed = discord.Embed(
-                title="❌ Teams Declined",
-                description="The team proposal was declined. Use `/create_teams` to generate new teams.",
-                color=Config.ERROR_COLOR
-            )
-            
-            await interaction.followup.send(embed=embed)
-        
-        except Exception as e:
-            logger.error(f"Error handling declined teams: {e}")
-            embed = discord.Embed(
-                title="❌ Teams Declined",
-                description="The team proposal was declined, but there was an error during cleanup.",
-                color=Config.ERROR_COLOR
-            )
-            await interaction.followup.send(embed=embed)
-        
-        # Disable all buttons
-        for item in self.children:
-            item.disabled = True
-        
-        await interaction.edit_original_response(view=self)
-    
-    async def on_timeout(self):
-        """Handle timeout"""
-        if not self.result_sent:
-            logger.info(f"Team proposal timed out for match {self.match_id}")
-            
-            # Disable all buttons
-            for item in self.children:
-                item.disabled = True
-            
-            # Note: We can't send new messages on timeout, but we can edit the original
-            # The timeout message will be handled by the command that created this view
 
 class PaginatedView(discord.ui.View):
     """Pagination for leaderboards and match history"""

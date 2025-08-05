@@ -191,22 +191,7 @@ class TeamCommands(commands.Cog):
             
             await interaction.followup.send(embed=embed, view=view)
             
-            # Handle timeout
-            await view.wait()
-            if view.result_sent:
-                return  # Already handled by the view
-            
-            # Timeout occurred
-            embed_timeout = EmbedTemplates.warning_embed(
-                "Team Proposal Expired",
-                "The team proposal timed out. Use `/create_teams` to generate new teams."
-            )
-            
-            # Clean up
-            await self.voice_manager.cleanup_team_channels(interaction.guild, return_to_waiting=False)
-            await api_client.cancel_match(match_id)
-            
-            await interaction.followup.send(embed=embed_timeout)
+            # No timeout handling needed - buttons stay active until clicked
             
         except ValueError as e:
             embed = EmbedTemplates.error_embed("Invalid Input", str(e))
