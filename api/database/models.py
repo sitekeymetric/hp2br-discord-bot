@@ -1,10 +1,44 @@
-from sqlalchemy import Column, BigInteger, String, Float, Integer, DateTime, Enum, Boolean, ForeignKey, ForeignKeyConstraint
+from sqlalchemy import Column, BigInteger, String, Float, Integer, DateTime, Enum, Boolean, ForeignKey, ForeignKeyConstraint, TypeDecorator, CHAR
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
-from sqlalchemy.dialects.postgresql import UUID
 import uuid
 import enum
 from datetime import datetime
+
+# SQLite-compatible UUID type
+class GUID(TypeDecorator):
+    """Platform-independent GUID type.
+    Uses PostgreSQL's UUID type, otherwise uses CHAR(32), storing as stringified hex values.
+    """
+    impl = CHAR
+    cache_ok = True
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == 'postgresql':
+            return dialect.type_descriptor(UUID())
+        else:
+            return dialect.type_descriptor(CHAR(32))
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return value
+        elif dialect.name == 'postgresql':
+            return str(value)
+        else:
+            if not isinstance(value, uuid.UUID):
+                return "%.32x" % uuid.UUID(value).int
+            else:
+                # hexstring
+                return "%.32x" % value.int
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return value
+        else:
+            if not isinstance(value, uuid.UUID):
+                return uuid.UUID(value)
+            else:
+                return value
 
 Base = declarative_base()
 
@@ -56,7 +90,7 @@ class Match(Base):
     __tablename__ = "matches"
     
     # Primary Key
-    match_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    match_id = Column(GUID(), primary_key=True, default=uuid.uuid4)
     
     # Match Context
     guild_id = Column(BigInteger, nullable=False, index=True)
@@ -82,7 +116,7 @@ class MatchPlayer(Base):
     __tablename__ = "match_players"
     
     # Composite Primary Key
-    match_id = Column(UUID(as_uuid=True), ForeignKey("matches.match_id"), primary_key=True)
+    match_id = Column(GUID(), ForeignKey("matches.match_id"), primary_key=True)
     user_id = Column(BigInteger, primary_key=True)
     guild_id = Column(BigInteger, nullable=False)
     
