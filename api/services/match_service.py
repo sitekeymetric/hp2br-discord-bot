@@ -170,7 +170,7 @@ class MatchService:
     
     @staticmethod
     def get_user_completed_match_history(db: Session, guild_id: int, user_id: int, limit: int = 20):
-        """Get only completed match history for a specific user with match date information"""
+        """Get only completed match history for a specific user with match date and teammate information"""
         # Query both MatchPlayer and Match data
         results = db.query(MatchPlayer, Match).filter(
             MatchPlayer.guild_id == guild_id,
@@ -182,6 +182,27 @@ class MatchService:
         # Convert to list of dictionaries with both player and match data
         history = []
         for match_player, match in results:
+            # Get teammates for this match (same team, different user)
+            teammates = db.query(MatchPlayer).join(User).filter(
+                MatchPlayer.match_id == match.match_id,
+                MatchPlayer.team_number == match_player.team_number,
+                MatchPlayer.user_id != user_id,
+                MatchPlayer.guild_id == guild_id
+            ).all()
+            
+            # Get teammate usernames
+            teammate_info = []
+            for teammate in teammates:
+                teammate_user = db.query(User).filter(
+                    User.guild_id == guild_id,
+                    User.user_id == teammate.user_id
+                ).first()
+                if teammate_user:
+                    teammate_info.append({
+                        'user_id': teammate.user_id,
+                        'username': teammate_user.username
+                    })
+            
             history.append({
                 'user_id': match_player.user_id,
                 'guild_id': match_player.guild_id,
@@ -195,7 +216,8 @@ class MatchService:
                 'start_time': match.start_time,
                 'end_time': match.end_time,
                 'status': match.status.value,
-                'result_type': match.result_type.value if match.result_type else None
+                'result_type': match.result_type.value if match.result_type else None,
+                'teammates': teammate_info  # NEW: Include teammate information
             })
         
         return history

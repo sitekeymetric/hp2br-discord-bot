@@ -367,7 +367,22 @@ class EmbedTemplates:
             else:
                 change_str = ""
             
-            history_text.append(f"{result_emoji} **Team {team_num}** - {date_str}{change_str}")
+            # Teammate information
+            teammates = match.get("teammates", [])
+            if teammates:
+                teammate_names = [t['username'] for t in teammates]
+                if len(teammate_names) == 1:
+                    teammate_str = f" with {teammate_names[0]}"
+                elif len(teammate_names) == 2:
+                    teammate_str = f" with {teammate_names[0]} & {teammate_names[1]}"
+                elif len(teammate_names) > 2:
+                    teammate_str = f" with {teammate_names[0]} & {len(teammate_names)-1} others"
+                else:
+                    teammate_str = ""
+            else:
+                teammate_str = " (solo)"
+            
+            history_text.append(f"{result_emoji} **Team {team_num}** - {date_str}{change_str}{teammate_str}")
         
         embed.description = "\n".join(history_text)
         

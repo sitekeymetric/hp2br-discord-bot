@@ -3,6 +3,17 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v1.9.6-build.1 - 2025-08-05
+
+### Changes
+- Added teammate display to match history - shows who you played with in each match
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-05T16:56:06.905705
+
+---
+
 ## v1.9.5-build.1 - 2025-08-05
 
 ### Changes
