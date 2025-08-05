@@ -3,6 +3,17 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v1.7.0-build.1 - 2025-08-05
+
+### Changes
+- Removed End Game from team creation, added to match results; added region-based team balancing to /create_teams
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-05T16:18:50.931315
+
+---
+
 ## v1.6.0-build.1 - 2025-08-05
 
 ### Changes

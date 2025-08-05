@@ -29,6 +29,9 @@ class Config:
     SINGLE_TEAM_THRESHOLD = 4  # 1-4 players = single team
     TWO_TEAM_THRESHOLD = 5     # 5 players = 2 teams (2:3 split)
     
+    # Region codes for validation
+    VALID_REGIONS = ["CA", "TX", "NY", "KR", "NA", "EU"]
+    
     # UI Settings
     EMBED_COLOR = 0x2B5CE6  # Discord blue
     ERROR_COLOR = 0xFF0000  # Red

@@ -13,9 +13,9 @@ class TeamBalancer:
     def __init__(self):
         pass
     
-    async def create_balanced_teams(self, members: List[discord.Member], num_teams: int, guild_id: int) -> Tuple[List[List[Dict]], List[float], float]:
+    async def create_balanced_teams(self, members: List[discord.Member], num_teams: int, guild_id: int, required_region: str = None) -> Tuple[List[List[Dict]], List[float], float]:
         """
-        Main balancing algorithm with special cases for small player counts
+        Main balancing algorithm with special cases for small player counts and region requirements
         Returns: (teams_with_data, team_ratings, balance_score)
         """
         if len(members) < Config.MIN_PLAYERS_FOR_TEAMS:
@@ -34,13 +34,13 @@ class TeamBalancer:
             num_teams = 1
             logger.info(f"Special case: {len(members)} players - creating single team")
         elif len(members) == Config.TWO_TEAM_THRESHOLD:
-            # 5 players: Split 2:3
-            teams = self._split_five_players(players_with_ratings)
+            # 5 players: Split 2:3 with region consideration
+            teams = self._split_five_players(players_with_ratings, required_region)
             num_teams = 2
             logger.info(f"Special case: 5 players - splitting 2:3")
         else:
-            # 6+ players: Use normal balancing algorithm
-            teams = self._snake_draft_balance(players_with_ratings, num_teams)
+            # 6+ players: Use normal balancing algorithm with region requirement
+            teams = self._create_balanced_teams_with_region(players_with_ratings, num_teams, required_region)
         
         # Calculate team ratings and balance score
         team_ratings = [self._calculate_team_rating(team) for team in teams]
@@ -48,6 +48,8 @@ class TeamBalancer:
         
         logger.info(f"Created {num_teams} teams with balance score: {balance_score:.2f}")
         logger.info(f"Team ratings: {[f'{rating:.1f}' for rating in team_ratings]}")
+        if required_region:
+            logger.info(f"Region requirement: {required_region}")
         
         return teams, team_ratings, balance_score
     
@@ -116,10 +118,11 @@ class TeamBalancer:
         
         return players_with_ratings
     
-    def _split_five_players(self, players: List[Dict]) -> List[List[Dict]]:
+    def _split_five_players(self, players: List[Dict], required_region: str = None) -> List[List[Dict]]:
         """
-        Split 5 players into 2 teams (2:3 split)
+        Split 5 players into 2 teams (2:3 split) with optional region requirement
         Put the 2 highest rated players on one team, 3 lowest on the other
+        If region is required, ensure each team has at least one player from that region
         """
         # Sort players by effective rating (mu - sigma for conservative estimate)
         sorted_players = sorted(
@@ -128,9 +131,34 @@ class TeamBalancer:
             reverse=True
         )
         
-        # Split: top 2 players vs bottom 3 players
-        team1 = sorted_players[:2]  # Top 2 players
-        team2 = sorted_players[2:]  # Bottom 3 players
+        if not required_region:
+            # Simple 2:3 split without region requirement
+            team1 = sorted_players[:2]  # Top 2 players
+            team2 = sorted_players[2:]  # Bottom 3 players
+        else:
+            # Region-based split
+            region_players = [p for p in sorted_players if p.get('region_code') == required_region]
+            non_region_players = [p for p in sorted_players if p.get('region_code') != required_region]
+            
+            if len(region_players) < 2:
+                # Not enough regional players for both teams, use simple split
+                logger.warning(f"Only {len(region_players)} players from region {required_region}, using simple split")
+                team1 = sorted_players[:2]
+                team2 = sorted_players[2:]
+            else:
+                # Distribute regional players: one per team
+                team1 = [region_players[0]]  # Best regional player to team 1
+                team2 = [region_players[1]]  # Second best regional player to team 2
+                
+                # Add remaining regional players to team 2 (the larger team)
+                for i in range(2, len(region_players)):
+                    team2.append(region_players[i])
+                
+                # Distribute non-regional players to balance teams
+                # Team 1 needs 1 more player, Team 2 needs remaining players
+                if non_region_players:
+                    team1.append(non_region_players[0])  # Best non-regional to team 1
+                    team2.extend(non_region_players[1:])  # Rest to team 2
         
         # Log team composition
         team1_names = [p['username'] for p in team1]
@@ -289,3 +317,61 @@ class TeamBalancer:
             summary_lines.append(f"**Team {i+1}** (Avg: {team_rating:.0f}): {', '.join(player_names)}")
         
         return "\n".join(summary_lines)
+    
+    def _create_balanced_teams_with_region(self, players: List[Dict], num_teams: int, required_region: str = None) -> List[List[Dict]]:
+        """
+        Create balanced teams with optional region requirement
+        If region is specified, ensures each team has at least one player from that region
+        """
+        if not required_region:
+            # Use standard snake draft if no region requirement
+            return self._snake_draft_balance(players, num_teams)
+        
+        # Separate players by region
+        region_players = [p for p in players if p.get('region_code') == required_region]
+        non_region_players = [p for p in players if p.get('region_code') != required_region]
+        
+        # Sort both groups by rating
+        region_players.sort(key=lambda p: p['rating_mu'] - (p['rating_sigma'] * 0.5), reverse=True)
+        non_region_players.sort(key=lambda p: p['rating_mu'] - (p['rating_sigma'] * 0.5), reverse=True)
+        
+        # Initialize teams
+        teams = [[] for _ in range(num_teams)]
+        
+        # First, distribute regional players (one per team)
+        for i in range(min(len(region_players), num_teams)):
+            teams[i].append(region_players[i])
+        
+        # Add remaining regional players using snake draft
+        remaining_region_players = region_players[num_teams:]
+        if remaining_region_players:
+            self._distribute_players_snake_draft(remaining_region_players, teams)
+        
+        # Distribute non-regional players using snake draft
+        if non_region_players:
+            self._distribute_players_snake_draft(non_region_players, teams)
+        
+        return teams
+    
+    def _distribute_players_snake_draft(self, players: List[Dict], teams: List[List[Dict]]):
+        """
+        Distribute players to existing teams using snake draft pattern
+        Modifies teams in place
+        """
+        num_teams = len(teams)
+        team_index = 0
+        direction = 1  # 1 for forward, -1 for backward
+        
+        for player in players:
+            teams[team_index].append(player)
+            
+            # Move to next team
+            team_index += direction
+            
+            # Reverse direction when reaching ends
+            if team_index >= num_teams:
+                team_index = num_teams - 2
+                direction = -1
+            elif team_index < 0:
+                team_index = 1
+                direction = 1

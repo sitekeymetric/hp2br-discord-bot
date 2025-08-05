@@ -23,12 +23,27 @@ class TeamCommands(commands.Cog):
         self.team_balancer = TeamBalancer()
     
     @app_commands.command(name="create_teams", description="Create balanced teams from waiting room")
-    @app_commands.describe(num_teams="Number of teams to create (default: auto, max: 6)")
-    async def create_teams(self, interaction: discord.Interaction, num_teams: Optional[int] = None):
-        """Main team balancing functionality with special cases for small player counts"""
+    @app_commands.describe(
+        num_teams="Number of teams to create (default: auto, max: 6)",
+        region="Require a player from this region in each team (CA, TX, NY, KR, NA, EU)"
+    )
+    async def create_teams(self, interaction: discord.Interaction, 
+                          num_teams: Optional[int] = None, 
+                          region: Optional[str] = None):
+        """Main team balancing functionality with special cases for small player counts and region requirements"""
         await interaction.response.defer()
         
         try:
+            # Validate region parameter if provided
+            if region:
+                region = region.upper()
+                if region not in Config.VALID_REGIONS:
+                    embed = EmbedTemplates.error_embed(
+                        "Invalid Region",
+                        f"Valid regions are: {', '.join(Config.VALID_REGIONS)}"
+                    )
+                    await interaction.followup.send(embed=embed, ephemeral=True)
+                    return
             # Check if there's already an active match
             active_match = self.voice_manager.get_active_match(interaction.guild.id)
             if active_match:
@@ -108,9 +123,39 @@ class TeamCommands(commands.Cog):
                     actual_num_teams = min_teams_needed
                     logger.info(f"Adjusted team count to {actual_num_teams} for {len(waiting_members)} players")
             
+            # Check if region requirement can be met
+            if region:
+                # Get user data to check regions
+                players_with_ratings = await self.team_balancer._get_player_ratings(
+                    interaction.guild.id, waiting_members
+                )
+                
+                # Count players from the required region
+                region_players = [p for p in players_with_ratings if p.get('region_code') == region]
+                
+                if not region_players:
+                    embed = EmbedTemplates.warning_embed(
+                        "No Regional Players",
+                        f"No players from region **{region}** found in the waiting room.\n"
+                        f"Region requirement cannot be satisfied."
+                    )
+                    await interaction.followup.send(embed=embed, ephemeral=True)
+                    return
+                
+                # Check if we have enough regional players for the number of teams
+                if actual_num_teams and len(region_players) < actual_num_teams:
+                    embed = EmbedTemplates.warning_embed(
+                        "Insufficient Regional Players",
+                        f"Only **{len(region_players)}** players from region **{region}** found, but **{actual_num_teams}** teams requested.\n"
+                        f"Need at least one **{region}** player per team.\n\n"
+                        f"Try reducing the number of teams or removing the region requirement."
+                    )
+                    await interaction.followup.send(embed=embed, ephemeral=True)
+                    return
+            
             # Create balanced teams
             teams, team_ratings, balance_score = await self.team_balancer.create_balanced_teams(
-                waiting_members, actual_num_teams, interaction.guild.id
+                waiting_members, actual_num_teams, interaction.guild.id, required_region=region
             )
             
             # Validate teams
@@ -121,6 +166,24 @@ class TeamCommands(commands.Cog):
                 )
                 await interaction.followup.send(embed=embed, ephemeral=True)
                 return
+            
+            # Check region requirement after team creation
+            if region:
+                teams_without_region = []
+                for i, team in enumerate(teams):
+                    team_has_region = any(p.get('region_code') == region for p in team)
+                    if not team_has_region:
+                        teams_without_region.append(i + 1)
+                
+                if teams_without_region:
+                    embed = EmbedTemplates.warning_embed(
+                        "Region Requirement Not Met",
+                        f"Could not place a **{region}** player in team(s): {', '.join(map(str, teams_without_region))}.\n"
+                        f"Not enough **{region}** players for the number of teams requested.\n\n"
+                        f"Try reducing the number of teams or removing the region requirement."
+                    )
+                    await interaction.followup.send(embed=embed, ephemeral=True)
+                    return
             
             # Create team voice channels
             team_channels = await self.voice_manager.create_team_channels(interaction.guild, actual_num_teams)
@@ -249,7 +312,7 @@ class TeamCommands(commands.Cog):
             
             # Create the interactive view
             from utils.views import MatchResultView
-            view = MatchResultView(teams=teams, match_id=match_id)
+            view = MatchResultView(teams=teams, match_id=match_id, voice_manager=self.voice_manager)
             
             await interaction.followup.send(embed=embed, view=view)
             

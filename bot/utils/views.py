@@ -7,7 +7,7 @@ from utils.constants import Config
 logger = logging.getLogger(__name__)
 
 class TeamProposalView(discord.ui.View):
-    """Interactive buttons for team proposals - Create Team or End Game"""
+    """Interactive button for team proposals - Create Team only"""
     
     def __init__(self, teams: List[List[Dict]], team_channels: List[discord.VoiceChannel], 
                  match_id: str, voice_manager):
@@ -31,6 +31,9 @@ class TeamProposalView(discord.ui.View):
         """Create the teams and move players"""
         user_id = interaction.user.id
         
+        # Log user action
+        print(f"[USER ACTION] {interaction.user.display_name} ({user_id}) clicked 'Create Team' button in guild {interaction.guild.name} ({interaction.guild.id})")
+        
         # Check if user is in the match
         if user_id not in self.all_players:
             await interaction.response.send_message(
@@ -46,31 +49,11 @@ class TeamProposalView(discord.ui.View):
             )
             return
         
-        await interaction.response.defer()
+        # Disable the clicked button immediately
+        button.disabled = True
+        await interaction.response.edit_message(view=self)
+        
         await self._handle_create_team(interaction)
-    
-    @discord.ui.button(label='🛑 End Game', style=discord.ButtonStyle.danger)
-    async def end_game(self, interaction: discord.Interaction, button: discord.ui.Button):
-        """End the game and cleanup (equivalent to /cleanup)"""
-        user_id = interaction.user.id
-        
-        # Check if user is in the match
-        if user_id not in self.all_players:
-            await interaction.response.send_message(
-                "❌ You're not part of this match!", 
-                ephemeral=True
-            )
-            return
-        
-        if self.result_sent:
-            await interaction.response.send_message(
-                "⚠️ Game has already been processed!", 
-                ephemeral=True
-            )
-            return
-        
-        await interaction.response.defer()
-        await self._handle_end_game(interaction)
     
     async def _handle_create_team(self, interaction: discord.Interaction):
         """Handle team creation and player movement"""
@@ -115,7 +98,7 @@ class TeamProposalView(discord.ui.View):
                 
                 embed.add_field(
                     name="📝 After Your Match",
-                    value="Use `/record_result <winning_team>` to record the outcome and update ratings.",
+                    value="Use `/record_result` to record the outcome and update ratings.",
                     inline=False
                 )
                 
@@ -141,7 +124,7 @@ class TeamProposalView(discord.ui.View):
                 )
                 embed.add_field(
                     name="📝 After Your Match",
-                    value="Use `/record_result <winning_team>` to record the outcome and update ratings.",
+                    value="Use `/record_result` to record the outcome and update ratings.",
                     inline=False
                 )
                 
@@ -168,60 +151,7 @@ class TeamProposalView(discord.ui.View):
             )
             await interaction.followup.send(embed=embed)
         
-        # Disable all buttons
-        for item in self.children:
-            item.disabled = True
-        
-        await interaction.edit_original_response(view=self)
-    
-    async def _handle_end_game(self, interaction: discord.Interaction):
-        """Handle ending the game (equivalent to /cleanup)"""
-        self.result_sent = True
-        
-        try:
-            # Import api_client here to avoid circular imports
-            from services.api_client import api_client
-            
-            # Cancel the match in database
-            await api_client.cancel_match(self.match_id)
-            
-            # Clean up team channels and return players to waiting room
-            await self.voice_manager.cleanup_team_channels(
-                interaction.guild, 
-                return_to_waiting=True
-            )
-            
-            # Clear active match
-            self.voice_manager.clear_active_match(interaction.guild.id)
-            
-            embed = discord.Embed(
-                title="🛑 Game Ended",
-                description="The game has been ended and all players have been returned to the waiting room.",
-                color=Config.WARNING_COLOR
-            )
-            embed.add_field(
-                name="🔄 What's Next",
-                value="Use `/create_teams` to start a new match when ready.",
-                inline=False
-            )
-            
-            await interaction.followup.send(embed=embed)
-        
-        except Exception as e:
-            logger.error(f"Error ending game: {e}")
-            embed = discord.Embed(
-                title="❌ Error Ending Game",
-                description=f"An error occurred while ending the game: {str(e)[:200]}",
-                color=Config.ERROR_COLOR
-            )
-            embed.add_field(
-                name="🔧 Manual Cleanup",
-                value="You may need to use `/cleanup` command to manually clean up channels.",
-                inline=False
-            )
-            await interaction.followup.send(embed=embed)
-        
-        # Disable all buttons
+        # Disable all buttons after processing
         for item in self.children:
             item.disabled = True
         
@@ -287,10 +217,11 @@ class TeamProposalView(discord.ui.View):
 class MatchResultView(discord.ui.View):
     """Interactive dialogue for recording match results with dropdowns for each team"""
     
-    def __init__(self, teams: List[List[Dict]], match_id: str):
+    def __init__(self, teams: List[List[Dict]], match_id: str, voice_manager):
         super().__init__(timeout=300)  # 5 minute timeout for result recording
         self.teams = teams
         self.match_id = match_id
+        self.voice_manager = voice_manager
         self.team_results = {}  # Store each team's result
         self.result_sent = False
         
@@ -310,6 +241,9 @@ class MatchResultView(discord.ui.View):
         
         # Add submit button
         self.add_item(SubmitResultsButton())
+        
+        # Add end game button
+        self.add_item(EndGameButton())
     
     def update_team_result(self, team_number: int, result: str):
         """Update a team's result"""
@@ -427,12 +361,17 @@ class MatchResultView(discord.ui.View):
                     inline=True
                 )
             
-            embed.set_footer(text="Match completed! Players will be returned to the waiting room.")
+            embed.add_field(
+                name="🔄 Next Steps",
+                value="Players will remain in team channels. Use the **End Game** button below to return everyone to the waiting room, or start a new match with `/create_teams`.",
+                inline=False
+            )
             
-            await interaction.followup.send(embed=embed)
+            # Create a new view with just the End Game button for post-match cleanup
+            cleanup_view = PostMatchCleanupView(self.voice_manager)
             
-            # Import voice manager and cleanup
-            # We'll need to get this from the parent command
+            await interaction.followup.send(embed=embed, view=cleanup_view)
+            
             logger.info(f"Match {self.match_id} completed with result: {result_type}, winner: {winning_team}")
             
         except Exception as e:
@@ -441,6 +380,68 @@ class MatchResultView(discord.ui.View):
                 title="❌ Error",
                 description=f"An error occurred while recording results: {str(e)[:200]}",
                 color=Config.ERROR_COLOR
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+        
+        # Disable all items
+        for item in self.children:
+            item.disabled = True
+        
+        await interaction.edit_original_response(view=self)
+    
+    async def end_game(self, interaction: discord.Interaction):
+        """End the game without recording results"""
+        if self.result_sent:
+            await interaction.response.send_message("Match has already been processed!", ephemeral=True)
+            return
+        
+        self.result_sent = True
+        
+        # Log user action
+        print(f"[USER ACTION] {interaction.user.display_name} ({interaction.user.id}) clicked 'End Game' button in guild {interaction.guild.name} ({interaction.guild.id})")
+        
+        await interaction.response.defer()
+        
+        try:
+            # Import here to avoid circular imports
+            from services.api_client import api_client
+            
+            # Cancel the match in database
+            await api_client.cancel_match(self.match_id)
+            
+            # Clean up team channels and return players to waiting room
+            await self.voice_manager.cleanup_team_channels(
+                interaction.guild, 
+                return_to_waiting=True
+            )
+            
+            # Clear active match
+            self.voice_manager.clear_active_match(interaction.guild.id)
+            
+            embed = discord.Embed(
+                title="🛑 Game Ended",
+                description="The game has been ended without recording results. All players have been returned to the waiting room.",
+                color=Config.WARNING_COLOR
+            )
+            embed.add_field(
+                name="🔄 What's Next",
+                value="Use `/create_teams` to start a new match when ready.",
+                inline=False
+            )
+            
+            await interaction.followup.send(embed=embed)
+        
+        except Exception as e:
+            logger.error(f"Error ending game: {e}")
+            embed = discord.Embed(
+                title="❌ Error Ending Game",
+                description=f"An error occurred while ending the game: {str(e)[:200]}",
+                color=Config.ERROR_COLOR
+            )
+            embed.add_field(
+                name="🔧 Manual Cleanup",
+                value="You may need to use `/cleanup` command to manually clean up channels.",
+                inline=False
             )
             await interaction.followup.send(embed=embed, ephemeral=True)
         
@@ -509,7 +510,79 @@ class SubmitResultsButton(discord.ui.Button):
     
     async def callback(self, interaction: discord.Interaction):
         """Handle result submission"""
+        # Log user action
+        print(f"[USER ACTION] {interaction.user.display_name} ({interaction.user.id}) clicked 'Submit Results' button in guild {interaction.guild.name} ({interaction.guild.id})")
         await self.view.submit_results(interaction)
+
+class EndGameButton(discord.ui.Button):
+    """Button to end the game without recording results"""
+    
+    def __init__(self):
+        super().__init__(
+            label="End Game",
+            style=discord.ButtonStyle.danger,
+            emoji="🛑"
+        )
+    
+    async def callback(self, interaction: discord.Interaction):
+        """Handle ending the game"""
+        await self.view.end_game(interaction)
+
+class PostMatchCleanupView(discord.ui.View):
+    """View with End Game button for post-match cleanup"""
+    
+    def __init__(self, voice_manager):
+        super().__init__(timeout=1800)  # 30 minute timeout
+        self.voice_manager = voice_manager
+    
+    @discord.ui.button(label='🛑 End Game', style=discord.ButtonStyle.danger)
+    async def end_game(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Return all players to waiting room"""
+        # Log user action
+        print(f"[USER ACTION] {interaction.user.display_name} ({interaction.user.id}) clicked 'End Game' button (post-match) in guild {interaction.guild.name} ({interaction.guild.id})")
+        
+        await interaction.response.defer()
+        
+        try:
+            # Clean up team channels and return players to waiting room
+            await self.voice_manager.cleanup_team_channels(
+                interaction.guild, 
+                return_to_waiting=True
+            )
+            
+            # Clear active match
+            self.voice_manager.clear_active_match(interaction.guild.id)
+            
+            embed = discord.Embed(
+                title="🛑 Game Ended",
+                description="All players have been returned to the waiting room.",
+                color=Config.SUCCESS_COLOR
+            )
+            embed.add_field(
+                name="🔄 What's Next",
+                value="Use `/create_teams` to start a new match when ready.",
+                inline=False
+            )
+            
+            await interaction.followup.send(embed=embed)
+        
+        except Exception as e:
+            logger.error(f"Error in post-match cleanup: {e}")
+            embed = discord.Embed(
+                title="❌ Error",
+                description=f"An error occurred during cleanup: {str(e)[:200]}",
+                color=Config.ERROR_COLOR
+            )
+            embed.add_field(
+                name="🔧 Manual Cleanup",
+                value="You may need to use `/cleanup` command to manually clean up channels.",
+                inline=False
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+        
+        # Disable the button
+        button.disabled = True
+        await interaction.edit_original_response(view=self)
 
 class PaginatedView(discord.ui.View):
     """Pagination for leaderboards and match history"""

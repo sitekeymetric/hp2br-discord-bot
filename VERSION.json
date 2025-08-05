@@ -1,8 +1,8 @@
 {
   "major": 1,
-  "minor": 6,
+  "minor": 7,
   "patch": 0,
   "build": 1,
-  "last_updated": "2025-08-05T15:43:14.061652",
-  "description": "Implemented COMPLETED-only statistics and automatic pending match cleanup during result recording"
+  "last_updated": "2025-08-05T16:18:50.931315",
+  "description": "Removed End Game from team creation, added to match results; added region-based team balancing to /create_teams"
 }

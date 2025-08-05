@@ -87,15 +87,19 @@ class EmbedTemplates:
         return embed
     
     @staticmethod
-    def team_proposal_embed(teams: List[List[Dict]], team_ratings: List[float], balance_score: float = 0.0) -> discord.Embed:
-        """Team proposal with ratings and balance info"""
+    def team_proposal_embed(teams: List[List[Dict]], team_ratings: List[float], balance_score: float = 0.0, region_requirement: str = None) -> discord.Embed:
+        """Team proposal with ratings and balance info, optionally showing region requirement"""
         # Adjust title and description for single team
         if len(teams) == 1:
             title = "🎮 Single Team Setup"
             description = "All players will be on the same team:"
+            if region_requirement:
+                description += f"\n🌍 **Region Requirement:** {region_requirement}"
         else:
             title = "🎮 Team Proposal"
             description = "Here are the balanced teams:"
+            if region_requirement:
+                description += f"\n🌍 **Region Requirement:** Each team has at least one {region_requirement} player"
             
         embed = discord.Embed(
             title=title,
@@ -111,7 +115,16 @@ class EmbedTemplates:
             for player in team:
                 username = player.get("username", "Unknown")
                 rating = player.get("rating_mu", 1500)
-                team_members.append(f"• {username} ({rating:.0f})")
+                player_line = f"• {username} ({rating:.0f})"
+                
+                # Add region indicator if requirement is set
+                if region_requirement and player.get('region_code'):
+                    region_indicator = " 🌍" if player.get('region_code') == region_requirement else ""
+                    player_line += f" [{player['region_code']}]{region_indicator}"
+                elif player.get('region_code'):
+                    player_line += f" [{player['region_code']}]"
+                
+                team_members.append(player_line)
             
             # Adjust field name for single team
             if len(teams) == 1:
@@ -134,11 +147,19 @@ class EmbedTemplates:
                 inline=False
             )
         
+        # Add region requirement explanation if set
+        if region_requirement:
+            embed.add_field(
+                name="🌍 Region Info",
+                value=f"Players marked with 🌍 are from region **{region_requirement}**.\nEach team is guaranteed to have at least one {region_requirement} player.",
+                inline=False
+            )
+        
         # Adjust footer for different team configurations
         if len(teams) == 1:
-            embed.set_footer(text="Click 'Create Team' to proceed or 'End Game' to cancel.")
+            embed.set_footer(text="Click 'Create Team' to proceed.")
         else:
-            embed.set_footer(text="Click 'Create Team' to proceed or 'End Game' to cancel and return to waiting room.")
+            embed.set_footer(text="Click 'Create Team' to proceed.")
         
         return embed
     
