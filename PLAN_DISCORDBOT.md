@@ -18,6 +18,31 @@
 
 ---
 
+## 🔧 Version Management System
+
+### Automatic Versioning
+- Centralized version management with `VERSION.json`
+- Automatic changelog generation in `CHANGES.md`
+- Version display in bot startup and commands
+- Semantic versioning: `v{major}.{minor}.{patch}-build.{build}`
+
+### Version Update Process
+```bash
+# Update version (most common)
+python3 update_version.py minor "Description of changes"
+
+# Show current version
+python3 version.py show
+```
+
+### Version Display Locations
+- Bot startup console output
+- `/help` command embed field
+- `/guild_stats` admin command
+- API startup and endpoints (`/version`, `/health`)
+
+---
+
 ## 📁 Project Structure
 
 ```

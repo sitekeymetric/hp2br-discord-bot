@@ -1,0 +1,8 @@
+{
+  "major": 1,
+  "minor": 1,
+  "patch": 0,
+  "build": 1,
+  "last_updated": "2025-08-05T14:51:29.667889",
+  "description": "Added versioning system with automatic changelog updates"
+}

@@ -9,6 +9,7 @@ from services.voice_manager import VoiceManager
 from utils.embeds import EmbedTemplates
 from utils.views import ConfirmationView
 from utils.constants import Config, VALID_REGIONS
+from utils.version import get_version_embed_field
 
 logger = logging.getLogger(__name__)
 
@@ -299,6 +300,14 @@ class AdminCommands(commands.Cog):
                     value=f"**In Waiting Room:** {current_waiting} players",
                     inline=True
                 )
+            
+            # Add version information
+            version_field = get_version_embed_field()
+            embed.add_field(
+                name=version_field["name"],
+                value=version_field["value"],
+                inline=version_field["inline"]
+            )
             
             await interaction.followup.send(embed=embed)
             

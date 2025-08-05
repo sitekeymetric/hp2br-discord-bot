@@ -3,6 +3,7 @@ from discord.ext import commands
 import asyncio
 import logging
 from utils.constants import Config
+from utils.version import print_startup_version, get_version_embed_field
 
 # Set up logging
 logging.basicConfig(
@@ -27,6 +28,7 @@ bot = commands.Bot(
 @bot.event
 async def on_ready():
     """Bot startup event"""
+    print_startup_version()  # Display version info at startup
     logger.info(f'{bot.user} has connected to Discord!')
     logger.info(f'Bot is in {len(bot.guilds)} guilds')
     
@@ -151,6 +153,14 @@ async def help_command(interaction: discord.Interaction):
         name="🚀 New User?",
         value="Use `/getting_started` for a complete beginner's guide!",
         inline=False
+    )
+    
+    # Add version information
+    version_field = get_version_embed_field()
+    embed.add_field(
+        name=version_field["name"],
+        value=version_field["value"],
+        inline=version_field["inline"]
     )
     
     await interaction.response.send_message(embed=embed)

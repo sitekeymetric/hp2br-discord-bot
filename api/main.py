@@ -2,12 +2,16 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database.connection import create_tables
 from routes import users, matches
+from utils.version import get_version_string, get_version_dict, print_startup_version
+
+# Get dynamic version
+version_info = get_version_dict()
 
 # Create FastAPI app
 app = FastAPI(
     title="Discord Team Balance Bot API",
     description="REST API for team balancing and match tracking",
-    version="1.0.0"
+    version=version_info["version"]
 )
 
 # CORS middleware for Discord bot integration
@@ -22,6 +26,7 @@ app.add_middleware(
 # Create database tables on startup
 @app.on_event("startup")
 def startup_event():
+    print_startup_version()  # Display version info at startup
     create_tables()
 
 # Include routers
@@ -30,8 +35,21 @@ app.include_router(matches.router)
 
 @app.get("/")
 def root():
-    return {"message": "Discord Team Balance Bot API", "status": "running"}
+    return {
+        "message": "Discord Team Balance Bot API", 
+        "status": "running",
+        "version": get_version_string()
+    }
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy"}
+    return {
+        "status": "healthy",
+        "version": get_version_string(),
+        "service": "HP2BR Discord Bot API"
+    }
+
+@app.get("/version")
+def get_version():
+    """Get API version information"""
+    return get_version_dict()
