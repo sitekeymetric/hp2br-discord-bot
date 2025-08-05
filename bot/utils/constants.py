@@ -9,7 +9,7 @@ class Config:
     DEBUG_MODE = os.environ.get("DEBUG", "False").lower() == "true"
     DEFAULT_TEAMS = int(os.environ.get("DEFAULT_TEAMS", "3"))
     MIN_PLAYERS = int(os.environ.get("MIN_PLAYERS", "6"))
-    MAX_PLAYERS = int(os.environ.get("MAX_PLAYERS", "15"))
+    MAX_PLAYERS = int(os.environ.get("MAX_PLAYERS", "24"))
     PROPOSAL_TIMEOUT = int(os.environ.get("PROPOSAL_TIMEOUT", "300"))  # 5 minutes
     
     # Voice Channel Names
@@ -22,7 +22,7 @@ class Config:
     
     # Team Balancing
     MIN_PLAYERS_FOR_TEAMS = 6
-    MAX_PLAYERS_PER_MATCH = 15
+    MAX_PLAYERS_PER_MATCH = 24
     DEFAULT_NUM_TEAMS = 3
     
     # UI Settings

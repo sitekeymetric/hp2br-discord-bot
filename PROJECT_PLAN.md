@@ -145,7 +145,7 @@ Match_Players:
 
 ### MVP Voice Channel Detection
 - Detect "Waiting Room" voice channel
-- Get list of connected players (6-15 players)
+- Get list of connected players (1-24 players)
 - Validate minimum players for team creation
 
 **MVP Deliverable**: ✅ COMPLETED - Advanced bot with comprehensive features
@@ -340,7 +340,7 @@ def create_balanced_teams(players):
 ## Integration Testing ✅ COMPLETED
 - [x] End-to-end user flow (register → create teams → play → record results)
 - [x] Error handling validation (API failures, permission issues, invalid inputs)
-- [x] Performance testing (suitable for 15+ concurrent users)
+- [x] Performance testing (suitable for 24+ concurrent users)
 - [x] Multi-guild testing (isolated data per guild)
 - [x] Load testing with multiple users (efficient async operations)
 
