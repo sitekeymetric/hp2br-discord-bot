@@ -1,8 +1,8 @@
 {
   "major": 1,
   "minor": 9,
-  "patch": 1,
+  "patch": 2,
   "build": 1,
-  "last_updated": "2025-08-05T16:35:56.037963",
-  "description": "Added flexibility for teams < 3 to report all losses (forfeit/incomplete matches) without requiring a winner"
+  "last_updated": "2025-08-05T16:38:29.828545",
+  "description": "Integrated top 3 teammates and win rates into main /stats command display"
 }

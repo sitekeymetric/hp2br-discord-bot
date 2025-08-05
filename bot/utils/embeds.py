@@ -7,8 +7,8 @@ class EmbedTemplates:
     """Discord embed templates for consistent UI"""
     
     @staticmethod
-    def user_stats_embed(user_data: Dict[str, Any]) -> discord.Embed:
-        """Rich embed showing user statistics"""
+    def user_stats_embed(user_data: Dict[str, Any], teammate_stats: List[Dict] = None) -> discord.Embed:
+        """Rich embed showing user statistics with optional teammate information"""
         username = user_data.get("username", "Unknown User")
         rating_mu = user_data.get("rating_mu", 1500.0)
         rating_sigma = user_data.get("rating_sigma", 350.0)
@@ -80,6 +80,32 @@ class EmbedTemplates:
                 )
             except:
                 pass
+        
+        # Add teammate information if available
+        if teammate_stats and len(teammate_stats) > 0:
+            teammate_text = []
+            for teammate in teammate_stats[:3]:  # Show top 3 teammates
+                teammate_name = teammate['teammate_username']
+                games_together = teammate['games_together']
+                win_rate_together = teammate['win_rate']
+                
+                # Win rate emoji
+                if win_rate_together >= 70:
+                    rate_emoji = "🔥"
+                elif win_rate_together >= 60:
+                    rate_emoji = "✅"
+                elif win_rate_together >= 50:
+                    rate_emoji = "⚖️"
+                else:
+                    rate_emoji = "⚠️"
+                
+                teammate_text.append(f"{rate_emoji} **{teammate_name}** - {games_together} games ({win_rate_together:.0f}%)")
+            
+            embed.add_field(
+                name="🤝 Top Teammates",
+                value="\n".join(teammate_text) if teammate_text else "No teammate data available",
+                inline=False
+            )
         
         # Add footer with rating explanation
         embed.set_footer(text="Rating shows skill level ± uncertainty. Lower uncertainty = more accurate rating.")

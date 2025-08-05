@@ -107,8 +107,15 @@ class UserCommands(commands.Cog):
                 await interaction.followup.send(embed=embed, ephemeral=True)
                 return
             
-            # Create stats embed with completed match data
-            embed = EmbedTemplates.user_stats_embed(user_data)
+            # Get teammate statistics (top 3 teammates)
+            teammate_stats = await api_client.get_user_teammate_stats(
+                guild_id=interaction.guild.id,
+                user_id=target_user.id,
+                limit=3
+            )
+            
+            # Create stats embed with completed match data and teammate info
+            embed = EmbedTemplates.user_stats_embed(user_data, teammate_stats)
             
             # Add note about completed matches only
             embed.add_field(

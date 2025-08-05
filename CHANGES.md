@@ -3,6 +3,17 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v1.9.2-build.1 - 2025-08-05
+
+### Changes
+- Integrated top 3 teammates and win rates into main /stats command display
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-05T16:38:29.828545
+
+---
+
 ## v1.9.1-build.1 - 2025-08-05
 
 ### Changes
