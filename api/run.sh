@@ -7,8 +7,8 @@ echo "Starting Discord Bot API..."
 
 # Check if virtual environment exists
 if [ ! -d ".venv" ]; then
-    echo "Creating virtual environment..."
-    python3 -m venv .venv
+    echo "VENV does not exist. please go to api folder and run 'uv venv'"
+    # python3 -m venv .venv
 fi
 
 # Activate virtual environment
@@ -17,8 +17,8 @@ source .venv/bin/activate
 
 # Install/upgrade dependencies
 echo "Installing dependencies..."
-pip install --upgrade pip
-pip install -r requirements.txt
+uv pip install --upgrade pip
+uv pip install --requirements requirements.txt
 
 # Set environment variables if .env file exists
 if [ -f ".env" ]; then
