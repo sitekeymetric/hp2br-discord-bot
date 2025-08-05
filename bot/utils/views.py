@@ -7,7 +7,7 @@ from utils.constants import Config
 logger = logging.getLogger(__name__)
 
 class TeamProposalView(discord.ui.View):
-    """Interactive buttons for team proposals"""
+    """Interactive buttons for team proposals - no voting, simple accept/decline"""
     
     def __init__(self, teams: List[List[Dict]], team_channels: List[discord.VoiceChannel], 
                  match_id: str, voice_manager, timeout: float = Config.TEAM_PROPOSAL_TIMEOUT):
@@ -17,23 +17,18 @@ class TeamProposalView(discord.ui.View):
         self.match_id = match_id
         self.voice_manager = voice_manager
         
-        # Track votes
-        self.accept_votes: set = set()
-        self.decline_votes: set = set()
+        # Get all player IDs for validation
         self.all_players: set = set()
-        
-        # Get all player IDs
         for team in teams:
             for player in team:
                 if 'discord_member' in player:
                     self.all_players.add(player['discord_member'].id)
         
-        self.votes_needed = max(1, len(self.all_players) // 2)  # Simple majority
         self.result_sent = False
     
     @discord.ui.button(label='✅ Accept Teams', style=discord.ButtonStyle.success)
     async def accept_teams(self, interaction: discord.Interaction, button: discord.ui.Button):
-        """Handle accept vote"""
+        """Handle accept - any player can accept the teams"""
         user_id = interaction.user.id
         
         # Check if user is in the match
@@ -44,34 +39,19 @@ class TeamProposalView(discord.ui.View):
             )
             return
         
-        # Remove from decline votes if present
-        self.decline_votes.discard(user_id)
-        
-        # Add to accept votes
-        if user_id in self.accept_votes:
+        if self.result_sent:
             await interaction.response.send_message(
-                "✅ You've already voted to accept!", 
+                "⚠️ Teams have already been processed!", 
                 ephemeral=True
             )
             return
         
-        self.accept_votes.add(user_id)
-        
-        accept_count = len(self.accept_votes)
-        total_players = len(self.all_players)
-        
-        await interaction.response.send_message(
-            f"✅ Vote recorded! ({accept_count}/{total_players} players voted to accept)", 
-            ephemeral=True
-        )
-        
-        # Check if we have enough votes to proceed
-        if accept_count >= self.votes_needed and not self.result_sent:
-            await self._handle_accepted(interaction)
+        await interaction.response.defer()
+        await self._handle_accepted(interaction)
     
     @discord.ui.button(label='❌ Decline Teams', style=discord.ButtonStyle.danger)
     async def decline_teams(self, interaction: discord.Interaction, button: discord.ui.Button):
-        """Handle decline vote"""
+        """Handle decline - any player can decline the teams"""
         user_id = interaction.user.id
         
         # Check if user is in the match
@@ -82,30 +62,15 @@ class TeamProposalView(discord.ui.View):
             )
             return
         
-        # Remove from accept votes if present
-        self.accept_votes.discard(user_id)
-        
-        # Add to decline votes
-        if user_id in self.decline_votes:
+        if self.result_sent:
             await interaction.response.send_message(
-                "❌ You've already voted to decline!", 
+                "⚠️ Teams have already been processed!", 
                 ephemeral=True
             )
             return
         
-        self.decline_votes.add(user_id)
-        
-        decline_count = len(self.decline_votes)
-        total_players = len(self.all_players)
-        
-        await interaction.response.send_message(
-            f"❌ Vote recorded! ({decline_count}/{total_players} players voted to decline)", 
-            ephemeral=True
-        )
-        
-        # Check if we have enough votes to decline
-        if decline_count >= self.votes_needed and not self.result_sent:
-            await self._handle_declined(interaction)
+        await interaction.response.defer()
+        await self._handle_declined(interaction)
     
     async def _handle_accepted(self, interaction: discord.Interaction):
         """Handle when teams are accepted"""
@@ -121,9 +86,12 @@ class TeamProposalView(discord.ui.View):
                         discord_team.append(player['discord_member'])
                 discord_teams.append(discord_team)
             
-            success = await self.voice_manager.move_players_to_teams(discord_teams, self.team_channels)
+            # Improved player movement with better error handling
+            success, moved_count, failed_players = await self._move_players_with_detailed_feedback(
+                discord_teams, self.team_channels
+            )
             
-            if success:
+            if success and moved_count > 0:
                 # Store active match info
                 self.voice_manager.set_active_match(interaction.guild.id, {
                     'match_id': self.match_id,
@@ -134,9 +102,17 @@ class TeamProposalView(discord.ui.View):
                 
                 embed = discord.Embed(
                     title="🎮 Teams Accepted!",
-                    description="Players have been moved to their team channels. Good luck!",
+                    description=f"Successfully moved {moved_count} players to their team channels. Good luck!",
                     color=Config.SUCCESS_COLOR
                 )
+                
+                if failed_players:
+                    embed.add_field(
+                        name="⚠️ Manual Movement Needed",
+                        value=f"Could not move: {', '.join(failed_players)}\nPlease move these players manually to their team channels.",
+                        inline=False
+                    )
+                
                 embed.add_field(
                     name="📝 After Your Match",
                     value="Use `/record_result <winning_team>` to record the outcome and update ratings.",
@@ -145,19 +121,50 @@ class TeamProposalView(discord.ui.View):
                 
                 await interaction.followup.send(embed=embed)
             else:
+                # Store active match even if movement failed
+                self.voice_manager.set_active_match(interaction.guild.id, {
+                    'match_id': self.match_id,
+                    'teams': self.teams,
+                    'team_channels': self.team_channels,
+                    'status': 'active'
+                })
+                
                 embed = discord.Embed(
-                    title="⚠️ Teams Accepted",
-                    description="Teams were accepted but there was an issue moving players. Please move manually to team channels.",
+                    title="⚠️ Teams Accepted - Manual Movement Required",
+                    description="Teams were accepted but players could not be moved automatically.",
                     color=Config.WARNING_COLOR
                 )
+                embed.add_field(
+                    name="🔧 What to do:",
+                    value="Please manually move players to their assigned team channels shown above.",
+                    inline=False
+                )
+                embed.add_field(
+                    name="📝 After Your Match",
+                    value="Use `/record_result <winning_team>` to record the outcome and update ratings.",
+                    inline=False
+                )
+                
+                if failed_players:
+                    embed.add_field(
+                        name="❌ Failed to move:",
+                        value=', '.join(failed_players),
+                        inline=False
+                    )
+                
                 await interaction.followup.send(embed=embed)
         
         except Exception as e:
             logger.error(f"Error handling accepted teams: {e}")
             embed = discord.Embed(
-                title="❌ Error",
-                description="Teams were accepted but an error occurred. Please try manually moving to team channels.",
+                title="❌ Error Processing Teams",
+                description=f"Teams were accepted but an error occurred: {str(e)[:200]}",
                 color=Config.ERROR_COLOR
+            )
+            embed.add_field(
+                name="🔧 What to do:",
+                value="Please manually move players to team channels and use `/record_result` after the match.",
+                inline=False
             )
             await interaction.followup.send(embed=embed)
         
@@ -166,6 +173,63 @@ class TeamProposalView(discord.ui.View):
             item.disabled = True
         
         await interaction.edit_original_response(view=self)
+    
+    async def _move_players_with_detailed_feedback(self, teams, team_channels):
+        """Enhanced player movement with detailed feedback"""
+        if len(teams) != len(team_channels):
+            logger.error("Mismatch between number of teams and channels")
+            return False, 0, []
+        
+        moved_count = 0
+        failed_players = []
+        
+        try:
+            for team_idx, (team, channel) in enumerate(zip(teams, team_channels)):
+                logger.info(f"Processing Team {team_idx + 1} with {len(team)} players")
+                
+                # Set permissions for team members
+                for member in team:
+                    try:
+                        await channel.set_permissions(
+                            member,
+                            connect=True,
+                            speak=True,
+                            reason=f"Team {team_idx + 1} member"
+                        )
+                        logger.debug(f"Set permissions for {member.display_name} on {channel.name}")
+                    except Exception as e:
+                        logger.warning(f"Could not set permissions for {member.display_name}: {e}")
+                
+                # Move members to team channel
+                for member in team:
+                    try:
+                        if member.voice and member.voice.channel:
+                            logger.info(f"Attempting to move {member.display_name} from {member.voice.channel.name} to {channel.name}")
+                            await member.move_to(channel, reason=f"Team {team_idx + 1} assignment")
+                            moved_count += 1
+                            logger.info(f"✅ Successfully moved {member.display_name} to Team {team_idx + 1}")
+                        else:
+                            logger.warning(f"❌ {member.display_name} is not in a voice channel")
+                            failed_players.append(f"{member.display_name} (not in voice)")
+                    except discord.Forbidden as e:
+                        logger.error(f"❌ Permission denied moving {member.display_name}: {e}")
+                        failed_players.append(f"{member.display_name} (permission denied)")
+                    except discord.HTTPException as e:
+                        logger.error(f"❌ HTTP error moving {member.display_name}: {e}")
+                        failed_players.append(f"{member.display_name} (connection error)")
+                    except Exception as e:
+                        logger.error(f"❌ Unexpected error moving {member.display_name}: {e}")
+                        failed_players.append(f"{member.display_name} (error: {str(e)[:50]})")
+                    
+                    # Small delay to avoid rate limits
+                    await asyncio.sleep(0.3)
+        
+        except Exception as e:
+            logger.error(f"Critical error during player movement: {e}")
+            return False, moved_count, failed_players
+        
+        logger.info(f"Movement complete: {moved_count} moved, {len(failed_players)} failed")
+        return moved_count > 0, moved_count, failed_players
     
     async def _handle_declined(self, interaction: discord.Interaction):
         """Handle when teams are declined"""

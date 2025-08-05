@@ -10,7 +10,7 @@ class Config:
     DEFAULT_TEAMS = int(os.environ.get("DEFAULT_TEAMS", "3"))
     MIN_PLAYERS = int(os.environ.get("MIN_PLAYERS", "6"))
     MAX_PLAYERS = int(os.environ.get("MAX_PLAYERS", "24"))
-    PROPOSAL_TIMEOUT = int(os.environ.get("PROPOSAL_TIMEOUT", "300"))  # 5 minutes
+    PROPOSAL_TIMEOUT = int(os.environ.get("PROPOSAL_TIMEOUT", "900"))  # 15 minutes
     
     # Voice Channel Names
     WAITING_ROOM_NAME = os.environ.get("WAITING_ROOM_NAME", "Waiting Room")
@@ -36,7 +36,7 @@ class Config:
     WARNING_COLOR = 0xFFFF00  # Yellow
     
     # Timeouts
-    TEAM_PROPOSAL_TIMEOUT = 300  # 5 minutes
+    TEAM_PROPOSAL_TIMEOUT = 900  # 15 minutes
     MATCH_CLEANUP_DELAY = 30     # 30 seconds
 
 # Region codes for validation

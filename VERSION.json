@@ -1,8 +1,8 @@
 {
   "major": 1,
   "minor": 3,
-  "patch": 0,
+  "patch": 1,
   "build": 1,
-  "last_updated": "2025-08-05T15:02:32.503773",
-  "description": "Added special cases for small player counts (1-5 players) with intelligent team configuration"
+  "last_updated": "2025-08-05T15:07:12.664494",
+  "description": "Fixed team acceptance system: removed voting, extended timeout to 15 minutes, improved player movement error handling"
 }

@@ -94,9 +94,9 @@ class VoiceManager:
         return created_channels
     
     async def move_players_to_teams(self, teams: List[List[discord.Member]], team_channels: List[discord.VoiceChannel]):
-        """Move players to their assigned team channels"""
+        """Move players to their assigned team channels with improved error handling"""
         if len(teams) != len(team_channels):
-            logger.error("Mismatch between number of teams and channels")
+            logger.error(f"Mismatch between number of teams ({len(teams)}) and channels ({len(team_channels)})")
             return False
         
         moved_count = 0
@@ -104,43 +104,64 @@ class VoiceManager:
         
         try:
             for team_idx, (team, channel) in enumerate(zip(teams, team_channels)):
-                # Allow team members to connect to their channel
+                logger.info(f"Processing Team {team_idx + 1}: {len(team)} players -> {channel.name}")
+                
+                # Set permissions for team members first
                 for member in team:
-                    await channel.set_permissions(
-                        member,
-                        connect=True,
-                        speak=True,
-                        reason=f"Team {team_idx + 1} member"
-                    )
+                    try:
+                        await channel.set_permissions(
+                            member,
+                            connect=True,
+                            speak=True,
+                            reason=f"Team {team_idx + 1} member"
+                        )
+                        logger.debug(f"Set permissions for {member.display_name}")
+                    except discord.Forbidden:
+                        logger.error(f"No permission to set channel permissions for {member.display_name}")
+                    except Exception as e:
+                        logger.warning(f"Could not set permissions for {member.display_name}: {e}")
                 
                 # Move members to team channel
                 for member in team:
                     try:
-                        if member.voice and member.voice.channel:
-                            await member.move_to(channel, reason=f"Team {team_idx + 1} assignment")
-                            moved_count += 1
-                            logger.info(f"Moved {member.display_name} to Team {team_idx + 1}")
-                        else:
-                            logger.warning(f"{member.display_name} is not in a voice channel")
-                            failed_moves.append(member.display_name)
+                        if not member.voice:
+                            logger.warning(f"{member.display_name} is not in any voice channel")
+                            failed_moves.append(f"{member.display_name} (not in voice)")
+                            continue
+                        
+                        if not member.voice.channel:
+                            logger.warning(f"{member.display_name} voice state has no channel")
+                            failed_moves.append(f"{member.display_name} (no voice channel)")
+                            continue
+                        
+                        current_channel = member.voice.channel.name
+                        logger.info(f"Moving {member.display_name} from {current_channel} to {channel.name}")
+                        
+                        await member.move_to(channel, reason=f"Team {team_idx + 1} assignment")
+                        moved_count += 1
+                        logger.info(f"✅ Successfully moved {member.display_name} to Team {team_idx + 1}")
+                        
+                    except discord.Forbidden as e:
+                        logger.error(f"❌ Permission denied moving {member.display_name}: {e}")
+                        failed_moves.append(f"{member.display_name} (permission denied)")
                     except discord.HTTPException as e:
-                        logger.error(f"Failed to move {member.display_name}: {e}")
-                        failed_moves.append(member.display_name)
+                        logger.error(f"❌ HTTP error moving {member.display_name}: {e}")
+                        failed_moves.append(f"{member.display_name} (connection error)")
                     except Exception as e:
-                        logger.error(f"Unexpected error moving {member.display_name}: {e}")
-                        failed_moves.append(member.display_name)
+                        logger.error(f"❌ Unexpected error moving {member.display_name}: {e}")
+                        failed_moves.append(f"{member.display_name} (error: {str(e)[:50]})")
                     
                     # Small delay to avoid rate limits
-                    await asyncio.sleep(0.5)
+                    await asyncio.sleep(0.3)
         
         except Exception as e:
-            logger.error(f"Error during player movement: {e}")
+            logger.error(f"Critical error during player movement: {e}")
             return False
         
         if failed_moves:
             logger.warning(f"Failed to move {len(failed_moves)} players: {failed_moves}")
         
-        logger.info(f"Successfully moved {moved_count} players to team channels")
+        logger.info(f"Movement summary: {moved_count} moved successfully, {len(failed_moves)} failed")
         return moved_count > 0
     
     async def cleanup_team_channels(self, guild: discord.Guild, return_to_waiting: bool = True):

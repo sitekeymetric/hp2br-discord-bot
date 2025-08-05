@@ -136,9 +136,9 @@ class EmbedTemplates:
         
         # Adjust footer for single team
         if len(teams) == 1:
-            embed.set_footer(text="Vote below to accept this setup. Expires in 5 minutes.")
+            embed.set_footer(text="Click Accept to proceed or Decline to regenerate. Expires in 15 minutes.")
         else:
-            embed.set_footer(text="Vote below to accept or decline these teams. Expires in 5 minutes.")
+            embed.set_footer(text="Click Accept to proceed or Decline to regenerate teams. Expires in 15 minutes.")
         
         return embed
     
