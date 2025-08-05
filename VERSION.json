@@ -1,8 +1,8 @@
 {
   "major": 1,
   "minor": 9,
-  "patch": 4,
+  "patch": 5,
   "build": 1,
-  "last_updated": "2025-08-05T16:46:09.220865",
-  "description": "Fixed API route ordering conflict that was causing 422 errors in leaderboard command"
+  "last_updated": "2025-08-05T16:51:38.019270",
+  "description": "Fixed ConfirmationView attribute error in admin commands (changed 'result' to 'value')"
 }

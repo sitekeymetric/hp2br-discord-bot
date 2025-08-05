@@ -169,7 +169,7 @@ class AdminCommands(commands.Cog):
             # Wait for confirmation
             await view.wait()
             
-            if view.result is True:
+            if view.value is True:
                 # Reset user by deleting and recreating
                 # Note: This is a simplified approach. In production, you might want a proper reset endpoint
                 
@@ -197,14 +197,14 @@ class AdminCommands(commands.Cog):
                     )
                     await interaction.edit_original_response(embed=embed, view=None)
             
-            elif view.result is False:
+            elif view.value is False:
                 embed = EmbedTemplates.warning_embed(
                     "Reset Cancelled",
                     "User reset was cancelled."
                 )
                 await interaction.edit_original_response(embed=embed, view=None)
             
-            else:  # Timeout
+            else:  # Timeout (view.value is None)
                 embed = EmbedTemplates.warning_embed(
                     "Reset Expired",
                     "Reset confirmation timed out."

@@ -660,12 +660,12 @@ class ConfirmationView(discord.ui.View):
     
     def __init__(self, timeout: float = 60):
         super().__init__(timeout=timeout)
-        self.result = None
+        self.value = None
     
     @discord.ui.button(label='✅ Confirm', style=discord.ButtonStyle.success)
     async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
         """Handle confirmation"""
-        self.result = True
+        self.value = True
         
         # Disable all buttons
         for item in self.children:
@@ -677,7 +677,7 @@ class ConfirmationView(discord.ui.View):
     @discord.ui.button(label='❌ Cancel', style=discord.ButtonStyle.danger)
     async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
         """Handle cancellation"""
-        self.result = False
+        self.value = False
         
         # Disable all buttons
         for item in self.children:
@@ -688,7 +688,7 @@ class ConfirmationView(discord.ui.View):
     
     async def on_timeout(self):
         """Handle timeout"""
-        self.result = False
+        self.value = None
         
         # Disable all buttons
         for item in self.children:
