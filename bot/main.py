@@ -1,0 +1,254 @@
+import discord
+from discord.ext import commands
+import asyncio
+import logging
+from utils.constants import Config
+
+# Set up logging
+logging.basicConfig(
+    level=logging.INFO if not Config.DEBUG_MODE else logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+# Bot setup with intents
+intents = discord.Intents.default()
+intents.message_content = True
+intents.voice_states = True
+intents.guilds = True
+intents.members = True
+
+bot = commands.Bot(
+    command_prefix='!',  # Fallback prefix, mainly using slash commands
+    intents=intents,
+    help_command=None  # Disable default help command
+)
+
+@bot.event
+async def on_ready():
+    """Bot startup event"""
+    logger.info(f'{bot.user} has connected to Discord!')
+    logger.info(f'Bot is in {len(bot.guilds)} guilds')
+    
+    # Sync slash commands
+    try:
+        synced = await bot.tree.sync()
+        logger.info(f'Synced {len(synced)} command(s)')
+    except Exception as e:
+        logger.error(f'Failed to sync commands: {e}')
+    
+    # Set bot status
+    await bot.change_presence(
+        activity=discord.Activity(
+            type=discord.ActivityType.watching,
+            name="for team balance opportunities"
+        )
+    )
+
+@bot.event
+async def on_guild_join(guild):
+    """Handle bot joining a new guild"""
+    logger.info(f'Bot joined guild: {guild.name} (ID: {guild.id})')
+    
+    # Send welcome message to system channel or first available text channel
+    channel = guild.system_channel or discord.utils.get(guild.text_channels, name='general')
+    if channel and channel.permissions_for(guild.me).send_messages:
+        embed = discord.Embed(
+            title="🎮 Team Balance Bot",
+            description="Thanks for adding me! I help create balanced teams for competitive games.",
+            color=Config.EMBED_COLOR
+        )
+        embed.add_field(
+            name="Getting Started",
+            value="• Use `/setup` to configure voice channels\n• Players use `/register` to join the system\n• Use `/create_teams` when players are in the waiting room",
+            inline=False
+        )
+        embed.add_field(
+            name="Need Help?",
+            value="Use `/help` to see all available commands",
+            inline=False
+        )
+        try:
+            await channel.send(embed=embed)
+        except Exception as e:
+            logger.error(f'Failed to send welcome message in {guild.name}: {e}')
+
+@bot.event
+async def on_application_command_error(interaction, error):
+    """Global error handler for slash commands"""
+    logger.error(f'Command error in {interaction.guild.name if interaction.guild else "DM"}: {error}')
+    
+    if interaction.response.is_done():
+        await interaction.followup.send(
+            "❌ An error occurred while processing your command. Please try again.",
+            ephemeral=True
+        )
+    else:
+        await interaction.response.send_message(
+            "❌ An error occurred while processing your command. Please try again.",
+            ephemeral=True
+        )
+
+@bot.tree.command(name="ping", description="Test if the bot is responsive")
+async def ping(interaction: discord.Interaction):
+    """Simple ping command for testing"""
+    latency = round(bot.latency * 1000)
+    embed = discord.Embed(
+        title="🏓 Pong!",
+        description=f"Bot latency: {latency}ms",
+        color=Config.SUCCESS_COLOR
+    )
+    await interaction.response.send_message(embed=embed)
+
+@bot.tree.command(name="help", description="Show all available commands")
+async def help_command(interaction: discord.Interaction):
+    """Display help information"""
+    embed = discord.Embed(
+        title="🎮 Team Balance Bot Commands",
+        description="Create balanced teams for competitive gameplay",
+        color=Config.EMBED_COLOR
+    )
+    
+    embed.add_field(
+        name="👤 User Commands",
+        value="• `/register [region]` - Register in the system\n"
+              "• `/stats [@user]` - View player statistics\n"
+              "• `/set_region <region>` - Update your region\n"
+              "• `/leaderboard [limit]` - Show top players",
+        inline=False
+    )
+    
+    embed.add_field(
+        name="🎯 Team Commands",
+        value="• `/create_teams [num_teams]` - Create balanced teams\n"
+              "• `/record_result <winning_team>` - Record match result\n"
+              "• `/cancel_match` - Cancel current match\n"
+              "• `/match_history [@user]` - View match history",
+        inline=False
+    )
+    
+    embed.add_field(
+        name="⚙️ Admin Commands",
+        value="• `/setup` - Initial bot setup\n"
+              "• `/reset_user <@user>` - Reset user's stats",
+        inline=False
+    )
+    
+    embed.add_field(
+        name="📝 How to Use",
+        value="1. Players join the **🎯 Waiting Room** voice channel\n"
+              "2. Use `/create_teams` to generate balanced teams\n"
+              "3. Players are moved to team voice channels\n"
+              "4. After the match, use `/record_result` to update ratings",
+        inline=False
+    )
+    
+    embed.add_field(
+        name="🚀 New User?",
+        value="Use `/getting_started` for a complete beginner's guide!",
+        inline=False
+    )
+    
+    await interaction.response.send_message(embed=embed)
+
+@bot.tree.command(name="getting_started", description="Complete guide for new players")
+async def getting_started(interaction: discord.Interaction):
+    """Detailed getting started guide for new users"""
+    embed = discord.Embed(
+        title="🚀 Getting Started with Team Balance Bot",
+        description="Welcome! Here's everything you need to know:",
+        color=Config.EMBED_COLOR
+    )
+    
+    embed.add_field(
+        name="1️⃣ First Time Setup",
+        value="• Use `/register` to join the team balance system\n"
+              "• Optionally add your region: `/register NA` (or EU, AS, OCE, etc.)\n"
+              "• Check your stats with `/stats` to confirm registration",
+        inline=False
+    )
+    
+    embed.add_field(
+        name="2️⃣ Joining a Match",
+        value="• Join the **🎯 Waiting Room** voice channel\n"
+              "• Wait for others to join (need at least 6 players)\n"
+              "• Someone with permissions uses `/create_teams`\n"
+              "• Vote ✅ to accept or ❌ to decline the team proposal",
+        inline=False
+    )
+    
+    embed.add_field(
+        name="3️⃣ During the Match",
+        value="• You'll be automatically moved to your team's voice channel\n"
+              "• Play your match with your balanced team\n"
+              "• Stay in your team channel until the match ends",
+        inline=False
+    )
+    
+    embed.add_field(
+        name="4️⃣ After the Match",
+        value="• Someone records the result with `/record_result 1` (if Team 1 won)\n"
+              "• Your rating will be updated automatically\n"
+              "• You'll be moved back to the waiting room\n"
+              "• Check your new stats with `/stats`!",
+        inline=False
+    )
+    
+    embed.add_field(
+        name="🎯 Quick Tips",
+        value="• Your rating starts at 1500 and changes based on wins/losses\n"
+              "• Better opponents = bigger rating gains when you win\n"
+              "• More games = more accurate rating and better team balance\n"
+              "• Use `/leaderboard` to see top players in your server",
+        inline=False
+    )
+    
+    embed.add_field(
+        name="❓ Need More Help?",
+        value="• Use `/help` for all available commands\n"
+              "• Use `/ping` to test if the bot is working\n"
+              "• Ask an admin to run `/setup` if voice channels are missing",
+        inline=False
+    )
+    
+    embed.set_footer(text="Ready to play? Use /register to get started!")
+    
+    await interaction.response.send_message(embed=embed)
+
+async def load_extensions():
+    """Load all command modules"""
+    extensions = [
+        'commands.user_commands',
+        'commands.team_commands', 
+        'commands.admin_commands'
+    ]
+    
+    for extension in extensions:
+        try:
+            await bot.load_extension(extension)
+            logger.info(f'Loaded extension: {extension}')
+        except Exception as e:
+            logger.error(f'Failed to load extension {extension}: {e}')
+
+async def main():
+    """Main bot startup function"""
+    try:
+        # Load command extensions
+        await load_extensions()
+        
+        # Start the bot
+        logger.info('Starting bot...')
+        await bot.start(Config.DISCORD_TOKEN)
+        
+    except Exception as e:
+        logger.error(f'Failed to start bot: {e}')
+    finally:
+        await bot.close()
+
+if __name__ == '__main__':
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info('Bot shutdown requested by user')
+    except Exception as e:
+        logger.error(f'Fatal error: {e}')
