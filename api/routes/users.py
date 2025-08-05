@@ -1,0 +1,46 @@
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from database.connection import get_db
+from services.user_service import UserService
+from schemas.user_schemas import UserCreate, UserUpdate, UserResponse
+from typing import List
+
+router = APIRouter(prefix="/users", tags=["users"])
+
+@router.post("/", response_model=UserResponse)
+def create_user(user_data: UserCreate, db: Session = Depends(get_db)):
+    """Create a new user"""
+    existing_user = UserService.get_user(db, user_data.guild_id, user_data.user_id)
+    if existing_user:
+        raise HTTPException(status_code=400, detail="User already exists")
+    
+    return UserService.create_user(db, user_data)
+
+@router.get("/{guild_id}", response_model=List[UserResponse])
+def get_guild_users(guild_id: int, db: Session = Depends(get_db)):
+    """Get all users in a guild"""
+    return UserService.get_guild_users(db, guild_id)
+
+@router.get("/{guild_id}/{user_id}", response_model=UserResponse)
+def get_user(guild_id: int, user_id: int, db: Session = Depends(get_db)):
+    """Get specific user"""
+    user = UserService.get_user(db, guild_id, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
+
+@router.put("/{guild_id}/{user_id}", response_model=UserResponse)
+def update_user(guild_id: int, user_id: int, update_data: UserUpdate, db: Session = Depends(get_db)):
+    """Update user information"""
+    user = UserService.update_user(db, guild_id, user_id, update_data)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
+
+@router.put("/{guild_id}/{user_id}/rating", response_model=UserResponse)
+def update_user_rating(guild_id: int, user_id: int, new_mu: float, new_sigma: float, db: Session = Depends(get_db)):
+    """Update user's rating (internal use)"""
+    user = UserService.update_user_rating(db, guild_id, user_id, new_mu, new_sigma)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
