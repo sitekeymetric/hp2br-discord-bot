@@ -127,7 +127,7 @@ class TeamCommands(commands.Cog):
             if region:
                 # Get user data to check regions
                 players_with_ratings = await self.team_balancer._get_player_ratings(
-                    interaction.guild.id, waiting_members
+                    waiting_members, interaction.guild.id
                 )
                 
                 # Count players from the required region

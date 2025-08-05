@@ -3,6 +3,28 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v1.8.0-build.1 - 2025-08-05
+
+### Changes
+- Enhanced match history to show full dates (MM/DD/YY), use match completion time, and display rating changes
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-05T16:27:01.738931
+
+---
+
+## v1.7.1-build.1 - 2025-08-05
+
+### Changes
+- Fixed 'int' object is not iterable error in /create_teams with region parameter for single players
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-05T16:24:00.040300
+
+---
+
 ## v1.7.0-build.1 - 2025-08-05
 
 ### Changes

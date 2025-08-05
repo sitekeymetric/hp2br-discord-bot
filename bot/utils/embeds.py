@@ -257,7 +257,7 @@ class EmbedTemplates:
     
     @staticmethod
     def match_history_embed(matches: List[Dict], username: str = None) -> discord.Embed:
-        """Match history display"""
+        """Match history display with enhanced date formatting"""
         title = f"📋 Match History"
         if username:
             title += f" - {username}"
@@ -269,21 +269,49 @@ class EmbedTemplates:
         )
         
         if not matches:
-            embed.description = "No match history found."
+            embed.description = "No completed match history found."
+            embed.add_field(
+                name="ℹ️ Note",
+                value="Statistics are based on completed matches only.",
+                inline=False
+            )
             return embed
         
         history_text = []
         for match in matches[:10]:  # Show last 10 matches
             result = match.get("result", "pending")
             team_num = match.get("team_number", "?")
-            created_at = match.get("created_at", "")
             
-            # Format date
+            # Use end_time (when match was completed) instead of created_at
+            end_time = match.get("end_time")
+            start_time = match.get("start_time")
+            
+            # Format date - prefer end_time, fallback to start_time
+            date_str = "??/??"
             try:
-                match_date = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
-                date_str = match_date.strftime("%m/%d")
-            except:
-                date_str = "??/??"
+                if end_time:
+                    match_date = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+                    date_str = match_date.strftime("%m/%d/%y")
+                elif start_time:
+                    match_date = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+                    date_str = match_date.strftime("%m/%d/%y")
+            except (ValueError, AttributeError):
+                # Handle both string and datetime objects
+                try:
+                    if end_time:
+                        if isinstance(end_time, str):
+                            match_date = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+                        else:
+                            match_date = end_time
+                        date_str = match_date.strftime("%m/%d/%y")
+                    elif start_time:
+                        if isinstance(start_time, str):
+                            match_date = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+                        else:
+                            match_date = start_time
+                        date_str = match_date.strftime("%m/%d/%y")
+                except:
+                    date_str = "??/??"
             
             # Result emoji
             if result == "win":
@@ -295,9 +323,29 @@ class EmbedTemplates:
             else:
                 result_emoji = "⚪"
             
-            history_text.append(f"{result_emoji} Team {team_num} - {date_str}")
+            # Rating change information
+            rating_before = match.get("rating_mu_before", 0)
+            rating_after = match.get("rating_mu_after", 0)
+            
+            if rating_after and rating_before:
+                rating_change = rating_after - rating_before
+                if rating_change > 0:
+                    change_str = f" (+{rating_change:.0f})"
+                elif rating_change < 0:
+                    change_str = f" ({rating_change:.0f})"
+                else:
+                    change_str = " (±0)"
+            else:
+                change_str = ""
+            
+            history_text.append(f"{result_emoji} **Team {team_num}** - {date_str}{change_str}")
         
         embed.description = "\n".join(history_text)
+        
+        # Add footer with explanation
+        embed.set_footer(text="🟢 Win | 🔴 Loss | 🟡 Draw | Numbers show rating change")
+        
+        return embed
         embed.set_footer(text="🟢 Win | 🔴 Loss | 🟡 Draw | ⚪ Pending")
         
         return embed

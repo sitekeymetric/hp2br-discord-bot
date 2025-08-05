@@ -166,11 +166,33 @@ class MatchService:
         ).join(Match).order_by(Match.created_at.desc()).limit(limit).all()
     
     @staticmethod
-    def get_user_completed_match_history(db: Session, guild_id: int, user_id: int, limit: int = 20) -> List[MatchPlayer]:
-        """Get only completed match history for a specific user (for ratings and statistics)"""
-        return db.query(MatchPlayer).filter(
+    def get_user_completed_match_history(db: Session, guild_id: int, user_id: int, limit: int = 20):
+        """Get only completed match history for a specific user with match date information"""
+        # Query both MatchPlayer and Match data
+        results = db.query(MatchPlayer, Match).filter(
             MatchPlayer.guild_id == guild_id,
             MatchPlayer.user_id == user_id
-        ).join(Match).filter(
+        ).join(Match, MatchPlayer.match_id == Match.match_id).filter(
             Match.status == MatchStatus.COMPLETED
-        ).order_by(Match.created_at.desc()).limit(limit).all()
+        ).order_by(Match.end_time.desc()).limit(limit).all()
+        
+        # Convert to list of dictionaries with both player and match data
+        history = []
+        for match_player, match in results:
+            history.append({
+                'user_id': match_player.user_id,
+                'guild_id': match_player.guild_id,
+                'team_number': match_player.team_number,
+                'rating_mu_before': match_player.rating_mu_before,
+                'rating_sigma_before': match_player.rating_sigma_before,
+                'rating_mu_after': match_player.rating_mu_after,
+                'rating_sigma_after': match_player.rating_sigma_after,
+                'result': match_player.result.value,
+                'match_id': match.match_id,
+                'start_time': match.start_time,
+                'end_time': match.end_time,
+                'status': match.status.value,
+                'result_type': match.result_type.value if match.result_type else None
+            })
+        
+        return history

@@ -125,7 +125,7 @@ def get_guild_completed_matches(guild_id: int, limit: int = 50, db: Session = De
     """Get only completed matches for a guild (for statistics and ratings)"""
     return MatchService.get_guild_completed_matches(db, guild_id, limit)
 
-@router.get("/user/{guild_id}/{user_id}/completed", response_model=List[MatchPlayerResponse])
+@router.get("/user/{guild_id}/{user_id}/completed")
 def get_user_completed_match_history(guild_id: int, user_id: int, limit: int = 20, db: Session = Depends(get_db)):
     """Get only completed match history for a specific user (for statistics and ratings)"""
     return MatchService.get_user_completed_match_history(db, guild_id, user_id, limit)

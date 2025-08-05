@@ -6,4 +6,4 @@ Refer to CHANGES.md for version changes and details with time stamp.
 Every changes should be added to CHANGES.md with date & revision and what changes occurred.
 Database and API changes should update PLAN_DATABASE.md
 Discord bot changes should update PLAN_DISCORDBOT.md
-Every update to code should increment the patch version (unless instructed for major or minor) so we can identify the application state.
+Every update to code should increment the patch version (unless instructed for major or minor) in a v<major>.<minor>.<patch> format

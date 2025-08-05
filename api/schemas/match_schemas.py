@@ -30,6 +30,24 @@ class MatchPlayerResponse(BaseModel):
     class Config:
         orm_mode = True
 
+class MatchPlayerWithDateResponse(BaseModel):
+    user_id: int
+    guild_id: int
+    team_number: int
+    rating_mu_before: float
+    rating_sigma_before: float
+    rating_mu_after: Optional[float]
+    rating_sigma_after: Optional[float]
+    result: str
+    match_id: UUID
+    start_time: datetime
+    end_time: Optional[datetime]
+    status: str
+    result_type: Optional[str]
+    
+    class Config:
+        orm_mode = True
+
 class MatchResponse(BaseModel):
     match_id: UUID
     guild_id: int
