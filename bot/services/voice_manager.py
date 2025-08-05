@@ -19,7 +19,7 @@ class VoiceManager:
         
         # Find waiting room channel
         for channel in guild.voice_channels:
-            if Config.WAITING_ROOM_NAME.lower() in channel.name.lower():
+            if channel.name.lower() == Config.WAITING_ROOM_NAME.lower():
                 waiting_room = channel
                 break
         

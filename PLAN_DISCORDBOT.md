@@ -262,6 +262,8 @@ The bot adapts voice channel creation based on player count:
 class VoiceManager:
     async def get_waiting_room_members(self, guild) -> List[discord.Member]:
         """Get all members in waiting room voice channel (no minimum required)"""
+        # IMPORTANT: Uses exact name matching for "Waiting Room" channel
+        # Changed from substring matching to prevent false matches
         
     async def create_team_channels(self, guild, team_config: dict) -> List[discord.VoiceChannel]:
         """
