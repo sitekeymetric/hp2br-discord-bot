@@ -3,6 +3,28 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v2.0.2-build.1 - 2025-08-05
+
+### Changes
+- Fixed missing datetime import causing error in /record_result command
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-05T17:52:47.411508
+
+---
+
+## v2.0.1-build.1 - 2025-08-05
+
+### Changes
+- Added placement-based result recording API endpoint and database migration support
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-05T17:50:19.458848
+
+---
+
 ## v2.0.0-build.1 - 2025-08-05
 
 ### Changes

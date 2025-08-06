@@ -1,12 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database.connection import get_db
+from database.models import User, MatchPlayer, MatchStatus, PlayerResult, ResultType
 from services.match_service import MatchService
 from services.user_service import UserService
 from services.rating_service import GlickoRatingService, Rating
 from schemas.match_schemas import MatchCreate, MatchPlayerCreate, MatchResultUpdate, MatchResponse, MatchPlayerResponse
 from typing import List
 from uuid import UUID
+from datetime import datetime
 
 router = APIRouter(prefix="/matches", tags=["matches"])
 
@@ -160,3 +162,145 @@ def cancel_match(match_id: UUID, db: Session = Depends(get_db)):
 def get_user_match_history(guild_id: int, user_id: int, limit: int = 20, db: Session = Depends(get_db)):
     """Get match history for a specific user"""
     return MatchService.get_user_match_history(db, guild_id, user_id, limit)
+
+@router.put("/{match_id}/placement-result")
+def record_placement_result(match_id: str, team_placements: dict, db: Session = Depends(get_db)):
+    """Record placement-based match result"""
+    try:
+        # Validate match exists and is pending
+        match = MatchService.get_match(db, match_id)
+        if not match:
+            raise HTTPException(status_code=404, detail="Match not found")
+        
+        if match.status != MatchStatus.PENDING:
+            raise HTTPException(status_code=400, detail="Match is not in pending status")
+        
+        # Get all players in the match
+        players = db.query(MatchPlayer).filter(MatchPlayer.match_id == match_id).all()
+        if not players:
+            raise HTTPException(status_code=404, detail="No players found for this match")
+        
+        # Group players by team
+        teams = {}
+        for player in players:
+            if player.team_number not in teams:
+                teams[player.team_number] = []
+            teams[player.team_number].append(player)
+        
+        # Validate team_placements
+        team_placements_int = {}
+        for team_str, placement in team_placements.items():
+            try:
+                team_num = int(team_str)
+                placement_num = int(placement)
+                team_placements_int[team_num] = placement_num
+            except (ValueError, TypeError):
+                raise HTTPException(status_code=400, detail=f"Invalid team number or placement: {team_str} -> {placement}")
+        
+        # Validate all teams have placements
+        if set(team_placements_int.keys()) != set(teams.keys()):
+            raise HTTPException(status_code=400, detail="All teams must have placements")
+        
+        # Validate placements are unique and consecutive
+        placements = list(team_placements_int.values())
+        if len(set(placements)) != len(placements):
+            raise HTTPException(status_code=400, detail="All placements must be unique")
+        
+        expected_placements = set(range(1, len(teams) + 1))
+        if set(placements) != expected_placements:
+            raise HTTPException(status_code=400, detail=f"Placements must be 1 through {len(teams)}")
+        
+        # Calculate rating changes and update players
+        for team_num, placement in team_placements_int.items():
+            team_players = teams[team_num]
+            
+            # Calculate rating change based on placement
+            rating_change = calculate_placement_rating_change(placement)
+            
+            # Determine result based on placement
+            if placement == 1:
+                result = PlayerResult.WIN
+            elif placement <= len(teams) // 2:
+                result = PlayerResult.DRAW if len(teams) > 2 else PlayerResult.LOSS
+            else:
+                result = PlayerResult.LOSS
+            
+            # Update each player in the team
+            for player in team_players:
+                # Get user for rating calculation
+                user = db.query(User).filter(
+                    User.guild_id == player.guild_id,
+                    User.user_id == player.user_id
+                ).first()
+                
+                if not user:
+                    continue
+                
+                # Calculate new rating using simplified approach
+                old_mu = user.rating_mu
+                old_sigma = user.rating_sigma
+                
+                # Apply rating change
+                new_mu = max(100, min(3000, old_mu + rating_change))  # Clamp between 100-3000
+                new_sigma = max(50, old_sigma * 0.99)  # Slightly reduce uncertainty
+                
+                # Update player record
+                player.team_placement = placement
+                player.rating_mu_after = new_mu
+                player.rating_sigma_after = new_sigma
+                player.result = result
+                
+                # Update user rating
+                user.rating_mu = new_mu
+                user.rating_sigma = new_sigma
+                
+                # Update user statistics
+                if result == PlayerResult.WIN:
+                    user.wins += 1
+                elif result == PlayerResult.LOSS:
+                    user.losses += 1
+                else:
+                    user.draws += 1
+                
+                user.games_played += 1
+        
+        # Update match status
+        match.status = MatchStatus.COMPLETED
+        match.result_type = ResultType.PLACEMENT
+        match.end_time = datetime.utcnow()
+        
+        # Find winning team (placement 1)
+        winning_team = None
+        for team_num, placement in team_placements_int.items():
+            if placement == 1:
+                winning_team = team_num
+                break
+        match.winning_team = winning_team
+        
+        # Commit all changes
+        db.commit()
+        
+        return {"message": "Placement results recorded successfully"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to record placement result: {str(e)}")
+
+def calculate_placement_rating_change(placement: int, baseline_rank: int = 7, max_rank: int = 30) -> float:
+    """Calculate rating change based on placement (Rank 7 baseline system)"""
+    if placement <= baseline_rank:
+        # Above baseline: scale from 0 to +25
+        if placement == baseline_rank:
+            return 0.0
+        performance_score = (baseline_rank - placement) / (baseline_rank - 1)
+        rating_change = performance_score * 25
+    else:
+        # Below baseline: scale from 0 to -40
+        if placement >= max_rank:
+            return -40.0
+        performance_score = (placement - baseline_rank) / (max_rank - baseline_rank)
+        rating_change = -performance_score * 40
+    
+    return rating_change

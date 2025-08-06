@@ -4,6 +4,7 @@ from discord import app_commands
 import logging
 from typing import Optional
 import asyncio
+from datetime import datetime
 
 from services.api_client import api_client
 from services.voice_manager import VoiceManager

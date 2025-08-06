@@ -3,6 +3,7 @@ from discord.ext import commands
 from discord import app_commands
 import logging
 from typing import Optional
+from datetime import datetime
 
 from services.api_client import api_client
 from utils.embeds import EmbedTemplates

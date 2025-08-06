@@ -1,8 +1,8 @@
 {
   "major": 2,
   "minor": 0,
-  "patch": 0,
+  "patch": 2,
   "build": 1,
-  "last_updated": "2025-08-05T17:37:13.905550",
-  "description": "Implemented placement-based rating system (Rank 7 baseline) replacing win/loss system for all matches"
+  "last_updated": "2025-08-05T17:52:47.411508",
+  "description": "Fixed missing datetime import causing error in /record_result command"
 }
