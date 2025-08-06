@@ -6,6 +6,7 @@ from typing import Optional
 from datetime import datetime
 
 from services.api_client import api_client
+from services.voice_manager import VoiceManager
 from utils.embeds import EmbedTemplates
 from utils.constants import Config, VALID_REGIONS
 
@@ -16,6 +17,7 @@ class UserCommands(commands.Cog):
     
     def __init__(self, bot):
         self.bot = bot
+        self.voice_manager = VoiceManager(bot)
     
     @app_commands.command(name="register", description="Register yourself in the team balance system")
     @app_commands.describe(region="Your region (CA, TX, NY, KR, NA, EU)")
@@ -96,9 +98,7 @@ class UserCommands(commands.Cog):
             
             if not user_data:
                 # Check if user is in waiting room for auto-registration
-                from services.voice_manager import VoiceManager
-                voice_manager = VoiceManager()
-                waiting_members = await voice_manager.get_waiting_room_members(interaction.guild)
+                waiting_members = await self.voice_manager.get_waiting_room_members(interaction.guild)
                 
                 if target_user in waiting_members:
                     # Auto-register user found in waiting room
@@ -244,9 +244,7 @@ class UserCommands(commands.Cog):
         
         try:
             # Auto-register any players currently in waiting room
-            from services.voice_manager import VoiceManager
-            voice_manager = VoiceManager()
-            waiting_members = await voice_manager.get_waiting_room_members(interaction.guild)
+            waiting_members = await self.voice_manager.get_waiting_room_members(interaction.guild)
             
             if waiting_members:
                 logger.info(f"Scanning {len(waiting_members)} waiting room members for auto-registration")

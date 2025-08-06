@@ -3,6 +3,17 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v2.3.1-build.1 - 2025-08-05
+
+### Changes
+- Fixed VoiceManager initialization error in auto-registration for /stats and /leaderboard commands
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-05T18:48:56.843996
+
+---
+
 ## v2.3.0-build.1 - 2025-08-05
 
 ### Changes

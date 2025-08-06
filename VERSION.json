@@ -1,8 +1,8 @@
 {
   "major": 2,
   "minor": 3,
-  "patch": 0,
+  "patch": 1,
   "build": 1,
-  "last_updated": "2025-08-05T18:37:34.461330",
-  "description": "Enhanced auto-registration: /stats and /leaderboard now auto-register players found in waiting room"
+  "last_updated": "2025-08-05T18:48:56.843996",
+  "description": "Fixed VoiceManager initialization error in auto-registration for /stats and /leaderboard commands"
 }
