@@ -3,20 +3,29 @@
 # Exit on any error
 set -e
 
-DB_FILE="team_balance.db"
+echo "Starting Discord Bot API..."
 
-# Check if the database file exists
-if [ ! -f "$DB_FILE" ]; then
-    echo "Error: Database file '$DB_FILE' not found in the current directory."
-    exit 1
+# Check if virtual environment exists
+if [ ! -d ".venv" ]; then
+    echo "VENV does not exist. please go to api folder and run 'uv venv'"
+    # python3 -m venv .venv
 fi
 
-echo "Connecting to database: $DB_FILE"
+# Activate virtual environment
+echo "Activating virtual environment..."
+source .venv/bin/activate
 
-echo "Deleting PENDING records from 'match_players' table..."
-sqlite3 "$DB_FILE" "DELETE FROM match_players WHERE result = 'PENDING';"
+# Install/upgrade dependencies
+echo "Installing dependencies..."
+uv pip install --upgrade pip
+uv pip install --requirements requirements.txt
 
-echo "Deleting PENDING records from 'matches' table..."
-sqlite3 "$DB_FILE" "DELETE FROM matches WHERE status = 'PENDING';"
+# Set environment variables if .env file exists
+if [ -f ".env" ]; then
+    echo "Loading environment variables from .env file..."
+    export $(cat .env | grep -v '^#' | xargs)
+fi
 
-echo "Cleanup of PENDING records complete."
+# Start the API server
+echo "Starting FastAPI server..."
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
