@@ -493,9 +493,10 @@ class UserCommands(commands.Cog):
             embed.add_field(
                 name="💡 How It Works",
                 value="• **Team Placement**: Your team's final ranking determines rating change\n"
-                      "• **Balanced System**: Easier to lose rating than gain it (realistic!)\n"
+                      "• **Guild Matches**: Use consecutive ranks (1, 2, 3...)\n"
+                      "• **External Competitions**: Use actual ranks (1-30)\n"
                       "• **Recovery Time**: One bad game takes 2-3 good games to recover\n"
-                      "• **No Match Types**: Same scale for all matches (simple!)",
+                      "• **Balanced System**: Easier to lose rating than gain it (realistic!)",
                 inline=False
             )
             

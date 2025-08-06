@@ -746,18 +746,27 @@ class PlacementResultView(discord.ui.View):
         
         placements = list(self.team_placements.values())
         
-        # Check for duplicates
-        if len(set(placements)) != len(placements):
-            return False, "Each team must have a unique placement (no ties)."
+        # Check for valid range (1 to 30, with 30+ treated as 30)
+        if min(placements) < 1:
+            return False, "Placements must be 1 or higher."
         
-        # Check for valid range (1 to number of teams)
-        if min(placements) < 1 or max(placements) > len(self.teams):
-            return False, f"Placements must be between 1 and {len(self.teams)}."
+        if max(placements) > 30:
+            return False, "Maximum supported placement is 30."
         
-        # Check for consecutive placements (1, 2, 3, etc.)
-        expected_placements = set(range(1, len(self.teams) + 1))
-        if set(placements) != expected_placements:
-            return False, f"Must use placements 1 through {len(self.teams)} exactly once each."
+        # For guild-only matches (all teams within guild), check for duplicates
+        max_placement = max(placements)
+        if max_placement <= len(self.teams):
+            # This appears to be a guild-only match, enforce unique consecutive placements
+            if len(set(placements)) != len(placements):
+                return False, "Each team must have a unique placement (no ties)."
+            
+            expected_placements = set(range(1, len(self.teams) + 1))
+            if set(placements) != expected_placements:
+                return False, f"For guild-only matches, must use placements 1 through {len(self.teams)} exactly once each."
+        else:
+            # This appears to be an external competition, allow any placements 1-30
+            if len(set(placements)) != len(placements):
+                return False, "Each team must have a unique placement (no ties)."
         
         return True, ""
     
@@ -780,6 +789,37 @@ class PlacementResultView(discord.ui.View):
             rating_change = -performance_score * 40
         
         return rating_change
+    
+    async def end_game(self, interaction: discord.Interaction):
+        """End the game without recording results"""
+        if self.result_sent:
+            await interaction.response.send_message("Results have already been submitted!", ephemeral=True)
+            return
+        
+        self.result_sent = True
+        
+        # Create confirmation embed
+        embed = discord.Embed(
+            title="🔚 Game Ended",
+            description="The match has been ended without recording results.\nNo ratings were changed.",
+            color=Config.WARNING_COLOR,
+            timestamp=datetime.utcnow()
+        )
+        
+        # Disable all buttons
+        for item in self.children:
+            item.disabled = True
+        
+        await interaction.response.edit_message(embed=embed, view=self)
+        
+        # Clean up voice channels
+        if self.voice_manager:
+            try:
+                await self.voice_manager.cleanup_team_channels()
+            except Exception as e:
+                logger.error(f"Error cleaning up voice channels: {e}")
+        
+        self.stop()
     
     async def submit_results(self, interaction: discord.Interaction):
         """Submit the placement results"""
@@ -905,7 +945,7 @@ class PlacementInputModal(discord.ui.Modal):
         
         self.placement_input = discord.ui.TextInput(
             label=f"Placement for {team_display}",
-            placeholder=f"Enter placement (1 = 1st place, 2 = 2nd place, etc.)",
+            placeholder=f"Enter placement (1-30, where 1 = 1st place)",
             min_length=1,
             max_length=2,
             required=True
@@ -924,21 +964,26 @@ class PlacementInputModal(discord.ui.Modal):
                 )
                 return
             
-            if placement > len(self.parent_view.teams):
+            # Allow placements 1-30, anything over 30 is treated as 30
+            if placement > 30:
+                placement = 30
                 await interaction.response.send_message(
-                    f"❌ Placement cannot be higher than {len(self.parent_view.teams)} (total teams)",
+                    f"ℹ️ Placement {self.placement_input.value} adjusted to 30 (maximum supported rank)",
                     ephemeral=True
                 )
-                return
+                # Continue with placement = 30
             
-            # Check if placement is already taken
-            for team_num, existing_placement in self.parent_view.team_placements.items():
-                if existing_placement == placement and team_num != self.team_number:
-                    await interaction.response.send_message(
-                        f"❌ Placement {placement} is already assigned to Team {team_num}",
-                        ephemeral=True
-                    )
-                    return
+            # For guild matches, still check if placement exceeds team count
+            # But allow higher placements for external competitions
+            if placement <= len(self.parent_view.teams):
+                # Check if placement is already taken (only for guild team placements)
+                for team_num, existing_placement in self.parent_view.team_placements.items():
+                    if existing_placement == placement and team_num != self.team_number:
+                        await interaction.response.send_message(
+                            f"❌ Placement {placement} is already assigned to Team {team_num}",
+                            ephemeral=True
+                        )
+                        return
             
             # Update placement
             self.parent_view.update_team_placement(self.team_number, placement)
@@ -955,10 +1000,14 @@ class PlacementInputModal(discord.ui.Modal):
                         emoji = "🥈"
                     elif placement == 3:
                         emoji = "🥉"
+                    elif placement <= 10:
+                        emoji = f"🏆"
+                    elif placement <= 20:
+                        emoji = f"📊"
                     else:
-                        emoji = f"{placement}."
+                        emoji = f"🔻"
                     
-                    item.label = f"Team {self.team_number}: {emoji} ({rating_change:+.1f})"
+                    item.label = f"Team {self.team_number}: {placement}. ({rating_change:+.1f})"
                     item.style = discord.ButtonStyle.success
                     break
             

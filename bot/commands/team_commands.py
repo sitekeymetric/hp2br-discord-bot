@@ -335,8 +335,9 @@ class TeamCommands(commands.Cog):
                 name="📝 Instructions",
                 value="1. Click each team's button to set their placement\n"
                       "2. Enter 1 for 1st place, 2 for 2nd place, etc.\n"
-                      "3. All teams must have unique placements\n"
-                      "4. Click 'Submit Results' when all placements are set",
+                      "3. **Guild matches**: Use consecutive ranks (1, 2, 3...)\n"
+                      "4. **External competitions**: Use actual ranks (1-30)\n"
+                      "5. Click 'Submit Results' when all placements are set",
                 inline=False
             )
             

@@ -138,8 +138,9 @@ async def help_command(interaction: discord.Interaction):
               "• **Rank 7** = 1500 baseline (no rating change)\n"
               "• **1st Place** = +25 rating maximum\n"
               "• **30th+ Place** = -40 rating maximum\n"
-              "• Use `/rating_scale` to see the full scale\n"
-              "• Fairer for multi-team matches!",
+              "• **Guild Matches**: Use consecutive ranks (1, 2, 3...)\n"
+              "• **External Competitions**: Use actual ranks (1-30)\n"
+              "• Use `/rating_scale` to see the full scale",
         inline=False
     )
     

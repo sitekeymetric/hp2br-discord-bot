@@ -1,8 +1,8 @@
 {
   "major": 2,
-  "minor": 0,
-  "patch": 2,
+  "minor": 1,
+  "patch": 1,
   "build": 1,
-  "last_updated": "2025-08-05T17:52:47.411508",
-  "description": "Fixed missing datetime import causing error in /record_result command"
+  "last_updated": "2025-08-05T18:00:28.329072",
+  "description": "Fixed missing end_game method in PlacementResultView causing End Game button error"
 }

@@ -3,6 +3,28 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v2.1.1-build.1 - 2025-08-05
+
+### Changes
+- Fixed missing end_game method in PlacementResultView causing End Game button error
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-05T18:00:28.329072
+
+---
+
+## v2.1.0-build.1 - 2025-08-05
+
+### Changes
+- Added support for external competitions: allow placements 1-30, detect guild vs external matches automatically
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-05T17:58:52.513674
+
+---
+
 ## v2.0.2-build.1 - 2025-08-05
 
 ### Changes

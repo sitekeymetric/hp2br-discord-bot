@@ -201,14 +201,28 @@ def record_placement_result(match_id: str, team_placements: dict, db: Session = 
         if set(team_placements_int.keys()) != set(teams.keys()):
             raise HTTPException(status_code=400, detail="All teams must have placements")
         
-        # Validate placements are unique and consecutive
+        # Validate placements are unique and within valid range
         placements = list(team_placements_int.values())
         if len(set(placements)) != len(placements):
             raise HTTPException(status_code=400, detail="All placements must be unique")
         
-        expected_placements = set(range(1, len(teams) + 1))
-        if set(placements) != expected_placements:
-            raise HTTPException(status_code=400, detail=f"Placements must be 1 through {len(teams)}")
+        # Check valid range (1-30)
+        if min(placements) < 1:
+            raise HTTPException(status_code=400, detail="Placements must be 1 or higher")
+        
+        if max(placements) > 30:
+            raise HTTPException(status_code=400, detail="Maximum supported placement is 30")
+        
+        # Determine if this is a guild-only match or external competition
+        max_placement = max(placements)
+        is_guild_only = max_placement <= len(teams)
+        
+        if is_guild_only:
+            # Guild-only match: require consecutive placements
+            expected_placements = set(range(1, len(teams) + 1))
+            if set(placements) != expected_placements:
+                raise HTTPException(status_code=400, detail=f"Guild matches must use placements 1 through {len(teams)}")
+        # External competitions: allow any unique placements 1-30
         
         # Calculate rating changes and update players
         for team_num, placement in team_placements_int.items():
