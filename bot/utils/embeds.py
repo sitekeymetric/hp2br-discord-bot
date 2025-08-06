@@ -342,22 +342,22 @@ class EmbedTemplates:
                 except:
                     date_str = "??/??"
             
-            # Result emoji
-            if result == "win":
-                result_emoji = "🟢"
-            elif result == "loss":
-                result_emoji = "🔴"
-            elif result == "draw":
-                result_emoji = "🟡"
-            else:
-                result_emoji = "⚪"
-            
-            # Rating change information
+            # Rating change information and color-coded emoji
             rating_before = match.get("rating_mu_before", 0)
             rating_after = match.get("rating_mu_after", 0)
             
             if rating_after and rating_before:
                 rating_change = rating_after - rating_before
+                
+                # Color-coded emoji based on rating change
+                if rating_change >= 10:  # 10+ points gain
+                    result_emoji = "🟢"  # Green for good gains
+                elif rating_change >= -9:  # -9 to +9 points
+                    result_emoji = "🟡"  # Yellow for small changes
+                else:  # -10 or worse
+                    result_emoji = "🔴"  # Red for significant losses
+                
+                # Format rating change display
                 if rating_change > 0:
                     change_str = f" (+{rating_change:.0f})"
                 elif rating_change < 0:
@@ -365,6 +365,16 @@ class EmbedTemplates:
                 else:
                     change_str = " (±0)"
             else:
+                # Fallback to old result-based emoji if no rating data
+                result = match.get("result", "pending")
+                if result == "win":
+                    result_emoji = "🟢"
+                elif result == "loss":
+                    result_emoji = "🔴"
+                elif result == "draw":
+                    result_emoji = "🟡"
+                else:
+                    result_emoji = "⚪"
                 change_str = ""
             
             # Teammate information
@@ -386,8 +396,8 @@ class EmbedTemplates:
         
         embed.description = "\n".join(history_text)
         
-        # Add footer with explanation
-        embed.set_footer(text="🟢 Win | 🔴 Loss | 🟡 Draw | Numbers show rating change")
+        # Add footer with explanation of color coding
+        embed.set_footer(text="🟢 +10+ rating | 🟡 -9 to +9 rating | 🔴 -10+ rating loss")
         
         return embed
     
