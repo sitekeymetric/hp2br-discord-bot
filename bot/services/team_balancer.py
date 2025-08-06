@@ -173,9 +173,10 @@ class TeamBalancer:
     
     def _snake_draft_balance(self, players: List[Dict], num_teams: int) -> List[List[Dict]]:
         """
-        Snake draft algorithm:
+        Snake draft algorithm with improved team size distribution:
         - Sort players by rating (highest to lowest)
-        - Distribute using snake pattern (1→2→3→3→2→1)
+        - Calculate optimal team sizes for even distribution
+        - Distribute using snake pattern within size constraints
         """
         # Sort players by effective rating (mu - sigma for conservative estimate)
         sorted_players = sorted(
@@ -184,17 +185,47 @@ class TeamBalancer:
             reverse=True
         )
         
+        # Calculate optimal team sizes for even distribution
+        total_players = len(sorted_players)
+        base_size = total_players // num_teams
+        extra_players = total_players % num_teams
+        
+        # Create target sizes: some teams get base_size+1, others get base_size
+        target_sizes = []
+        for i in range(num_teams):
+            if i < extra_players:
+                target_sizes.append(base_size + 1)
+            else:
+                target_sizes.append(base_size)
+        
         # Initialize teams
         teams = [[] for _ in range(num_teams)]
         
-        # Snake draft distribution
+        # Snake draft distribution with size constraints
         team_index = 0
         direction = 1  # 1 for forward, -1 for backward
         
         for player in sorted_players:
+            # Find next available team in snake order
+            attempts = 0
+            while len(teams[team_index]) >= target_sizes[team_index] and attempts < num_teams:
+                # Move to next team in snake pattern
+                team_index += direction
+                
+                # Reverse direction when reaching ends
+                if team_index >= num_teams:
+                    team_index = num_teams - 1
+                    direction = -1
+                elif team_index < 0:
+                    team_index = 0
+                    direction = 1
+                
+                attempts += 1
+            
+            # Add player to current team
             teams[team_index].append(player)
             
-            # Move to next team
+            # Move to next team for next iteration
             team_index += direction
             
             # Reverse direction when reaching ends
@@ -205,12 +236,16 @@ class TeamBalancer:
                 team_index = 0
                 direction = 1
         
-        # Log team composition
+        # Log team composition with sizes
         for i, team in enumerate(teams):
             team_names = [p['username'] for p in team]
             team_ratings = [p['rating_mu'] for p in team]
             avg_rating = sum(team_ratings) / len(team_ratings) if team_ratings else 0
-            logger.info(f"Team {i+1}: {team_names} (avg: {avg_rating:.1f})")
+            logger.info(f"Team {i+1} ({len(team)} players): {team_names} (avg: {avg_rating:.1f})")
+        
+        # Log distribution summary
+        team_sizes = [len(team) for team in teams]
+        logger.info(f"Team size distribution: {team_sizes} (total: {sum(team_sizes)} players)")
         
         return teams
     
@@ -355,7 +390,7 @@ class TeamBalancer:
     
     def _distribute_players_snake_draft(self, players: List[Dict], teams: List[List[Dict]]):
         """
-        Distribute players to existing teams using snake draft pattern
+        Distribute players to existing teams using snake draft pattern with size balancing
         Modifies teams in place
         """
         num_teams = len(teams)
@@ -363,6 +398,33 @@ class TeamBalancer:
         direction = 1  # 1 for forward, -1 for backward
         
         for player in players:
+            # Find the team with the smallest size first (for better balance)
+            current_sizes = [len(team) for team in teams]
+            min_size = min(current_sizes)
+            
+            # If current team is already larger than minimum, find a smaller team
+            if len(teams[team_index]) > min_size:
+                # Find the first team with minimum size in snake order
+                original_index = team_index
+                attempts = 0
+                
+                while len(teams[team_index]) > min_size and attempts < num_teams:
+                    team_index += direction
+                    
+                    # Reverse direction when reaching ends
+                    if team_index >= num_teams:
+                        team_index = num_teams - 1
+                        direction = -1
+                    elif team_index < 0:
+                        team_index = 0
+                        direction = 1
+                    
+                    attempts += 1
+                
+                # If we couldn't find a smaller team, use original index
+                if attempts >= num_teams:
+                    team_index = original_index
+            
             teams[team_index].append(player)
             
             # Move to next team
@@ -370,8 +432,8 @@ class TeamBalancer:
             
             # Reverse direction when reaching ends
             if team_index >= num_teams:
-                team_index = num_teams - 2
+                team_index = num_teams - 2 if num_teams > 1 else 0
                 direction = -1
             elif team_index < 0:
-                team_index = 1
+                team_index = 1 if num_teams > 1 else 0
                 direction = 1
