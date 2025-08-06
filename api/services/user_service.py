@@ -32,8 +32,11 @@ class UserService:
     
     @staticmethod
     def get_guild_users_with_completed_stats(db: Session, guild_id: int) -> List[dict]:
-        """Get all users in a guild with statistics based only on COMPLETED matches"""
-        users = db.query(User).filter(User.guild_id == guild_id).all()
+        """Get all users in a guild with statistics based only on COMPLETED matches (excludes soft-deleted users)"""
+        users = db.query(User).filter(
+            User.guild_id == guild_id,
+            User.deleted_at.is_(None)  # Exclude soft-deleted users
+        ).all()
         
         result = []
         for user in users:
@@ -222,10 +225,11 @@ class UserService:
         # Convert to list and add user information
         result = []
         for teammate_id, stats in teammate_stats.items():
-            # Get teammate user info
+            # Get teammate user info (exclude soft-deleted users)
             teammate_user = db.query(User).filter(
                 User.guild_id == guild_id,
-                User.user_id == teammate_id
+                User.user_id == teammate_id,
+                User.deleted_at.is_(None)  # Exclude soft-deleted users
             ).first()
             
             if teammate_user and stats['games_together'] > 0:

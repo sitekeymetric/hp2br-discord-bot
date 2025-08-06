@@ -1,8 +1,8 @@
 {
   "major": 2,
   "minor": 5,
-  "patch": 0,
+  "patch": 1,
   "build": 1,
-  "last_updated": "2025-08-05T21:17:56.184136",
-  "description": "Made team voice channels open - players can freely join/leave without permission restrictions"
+  "last_updated": "2025-08-05T21:38:41.757406",
+  "description": "Fixed leaderboard API error by adding soft-delete filtering to guild user queries"
 }

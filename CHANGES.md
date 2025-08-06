@@ -3,6 +3,17 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v2.5.1-build.1 - 2025-08-05
+
+### Changes
+- Fixed leaderboard API error by adding soft-delete filtering to guild user queries
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-05T21:38:41.757406
+
+---
+
 ## v2.5.0-build.1 - 2025-08-05
 
 ### Changes
