@@ -1,8 +1,8 @@
 {
-  "major": 1,
-  "minor": 9,
-  "patch": 6,
+  "major": 2,
+  "minor": 0,
+  "patch": 0,
   "build": 1,
-  "last_updated": "2025-08-05T16:56:06.905705",
-  "description": "Added teammate display to match history - shows who you played with in each match"
+  "last_updated": "2025-08-05T17:37:13.905550",
+  "description": "Implemented placement-based rating system (Rank 7 baseline) replacing win/loss system for all matches"
 }

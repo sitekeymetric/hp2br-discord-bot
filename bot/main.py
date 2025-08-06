@@ -119,15 +119,27 @@ async def help_command(interaction: discord.Interaction):
               "• `/leaderboard [limit]` - Show top players\n"
               "• `/delete_account` - Delete your account\n"
               "• `/match_history [@user]` - View match history\n"
-              "• `/teammates [@user]` - View teammate statistics",
+              "• `/teammates [@user]` - View teammate statistics\n"
+              "• `/rating_scale` - View placement-based rating scale",
         inline=False
     )
     
     embed.add_field(
         name="🎯 Team Commands",
         value="• `/create_teams [num_teams]` - Create balanced teams\n"
-              "• `/record_result <winning_team>` - Record match result\n"
+              "• `/record_result` - Record match results (placement-based)\n"
               "• `/cancel_match` - Cancel current match",
+        inline=False
+    )
+    
+    embed.add_field(
+        name="🏆 New Placement-Based Rating System",
+        value="**No More Win/Loss!** All matches now use placement-based ratings:\n"
+              "• **Rank 7** = 1500 baseline (no rating change)\n"
+              "• **1st Place** = +25 rating maximum\n"
+              "• **30th+ Place** = -40 rating maximum\n"
+              "• Use `/rating_scale` to see the full scale\n"
+              "• Fairer for multi-team matches!",
         inline=False
     )
     

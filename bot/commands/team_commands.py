@@ -267,9 +267,9 @@ class TeamCommands(commands.Cog):
             )
             await interaction.followup.send(embed=embed, ephemeral=True)
     
-    @app_commands.command(name="record_result", description="Record match result with interactive dialogue")
+    @app_commands.command(name="record_result", description="Record match result using placement-based system")
     async def record_result(self, interaction: discord.Interaction):
-        """Record match outcome using interactive dialogue"""
+        """Record match outcome using placement-based system"""
         await interaction.response.defer()
         
         try:
@@ -286,46 +286,60 @@ class TeamCommands(commands.Cog):
             match_id = active_match['match_id']
             teams = active_match['teams']
             
-            # Create result recording dialogue
-            embed = discord.Embed(
-                title="📝 Record Match Results",
-                description="Select the result for each team using the dropdowns below.",
-                color=Config.EMBED_COLOR
+            # Create placement-based result recording view
+            from utils.views import PlacementResultView
+            view = PlacementResultView(
+                teams=teams,
+                match_id=match_id,
+                voice_manager=self.voice_manager
             )
             
-            # Show team composition
+            # Create initial embed explaining the new system
+            embed = discord.Embed(
+                title="🏆 Record Match Results (Placement-Based)",
+                description=f"**New System**: Results are now based on team placements, not simple win/loss!\n\n"
+                           f"**Teams in Match**: {len(teams)}\n"
+                           f"**Rating System**: Rank 7 = 1500 baseline (no change)\n"
+                           f"**Range**: +25 (1st place) to -40 (30th+ place)",
+                color=Config.EMBED_COLOR,
+                timestamp=datetime.utcnow()
+            )
+            
+            # Show teams
+            team_list = []
             for i, team in enumerate(teams):
                 team_names = [player['username'] for player in team]
-                embed.add_field(
-                    name=f"Team {i+1}",
-                    value="\n".join([f"• {name}" for name in team_names]),
-                    inline=True
-                )
-            
-            # Add instructions based on team count
-            if len(teams) < 3:
-                instructions = ("• Select **Win** for the winning team\n"
-                              "• Select **Loss** for losing teams\n"
-                              "• Select **Draw** for all teams if it was a tie\n"
-                              "• **For small matches**: All teams can be marked as **Loss** (forfeit/incomplete)\n"
-                              "• Click **Submit Results** when done")
-            else:
-                instructions = ("• Select **Win** for the winning team\n"
-                              "• Select **Loss** for losing teams\n"
-                              "• Select **Draw** for all teams if it was a tie\n"
-                              "• Click **Submit Results** when done")
+                team_display = ', '.join(team_names[:3])
+                if len(team_names) > 3:
+                    team_display += f" (+{len(team_names)-3} more)"
+                team_list.append(f"**Team {i+1}**: {team_display}")
             
             embed.add_field(
-                name="📋 Instructions",
-                value=instructions,
+                name="👥 Teams",
+                value="\n".join(team_list),
                 inline=False
             )
             
-            embed.set_footer(text="Results will be recorded and ratings updated automatically.")
+            # Show rating examples for this match
+            embed.add_field(
+                name="📊 Rating Changes for This Match",
+                value=f"🥇 **1st Place**: +{view.calculate_rating_change(1):.1f} rating\n"
+                      f"🥈 **2nd Place**: +{view.calculate_rating_change(2):.1f} rating\n" +
+                      (f"🥉 **3rd Place**: +{view.calculate_rating_change(3):.1f} rating\n" if len(teams) >= 3 else "") +
+                      (f"📊 **{len(teams)}th Place**: {view.calculate_rating_change(len(teams)):+.1f} rating" if len(teams) > 3 else ""),
+                inline=False
+            )
             
-            # Create the interactive view
-            from utils.views import MatchResultView
-            view = MatchResultView(teams=teams, match_id=match_id, voice_manager=self.voice_manager)
+            embed.add_field(
+                name="📝 Instructions",
+                value="1. Click each team's button to set their placement\n"
+                      "2. Enter 1 for 1st place, 2 for 2nd place, etc.\n"
+                      "3. All teams must have unique placements\n"
+                      "4. Click 'Submit Results' when all placements are set",
+                inline=False
+            )
+            
+            embed.set_footer(text="Use /rating_scale to see the full rating system")
             
             await interaction.followup.send(embed=embed, view=view)
             

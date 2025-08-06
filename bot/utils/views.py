@@ -695,3 +695,291 @@ class ConfirmationView(discord.ui.View):
             item.disabled = True
         
         self.stop()
+
+class PlacementResultView(discord.ui.View):
+    """Interactive dialogue for recording placement-based match results"""
+    
+    def __init__(self, teams: List[List[Dict]], match_id: str, voice_manager):
+        super().__init__(timeout=300)  # 5 minute timeout for result recording
+        self.teams = teams
+        self.match_id = match_id
+        self.voice_manager = voice_manager
+        self.team_placements = {}  # team_number -> placement
+        self.result_sent = False
+        
+        # Create placement input for each team
+        for i, team in enumerate(teams):
+            team_names = [player['username'] for player in team]
+            team_display = f"Team {i+1}: {', '.join(team_names[:3])}"
+            if len(team_names) > 3:
+                team_display += f" (+{len(team_names)-3} more)"
+            
+            # Add team placement button
+            button = TeamPlacementButton(
+                team_number=i+1,
+                team_display=team_display,
+                parent_view=self
+            )
+            self.add_item(button)
+        
+        # Add submit and end game buttons
+        self.add_item(SubmitPlacementResultsButton())
+        self.add_item(EndGameButton())
+    
+    def update_team_placement(self, team_number: int, placement: int):
+        """Update a team's placement"""
+        self.team_placements[team_number] = placement
+        
+        # Check if all teams have placements
+        if len(self.team_placements) == len(self.teams):
+            # Enable submit button
+            for item in self.children:
+                if isinstance(item, SubmitPlacementResultsButton):
+                    item.disabled = False
+                    break
+    
+    def validate_placements(self) -> tuple[bool, str]:
+        """Validate that placements make sense"""
+        if len(self.team_placements) != len(self.teams):
+            return False, "Please set placement for all teams."
+        
+        placements = list(self.team_placements.values())
+        
+        # Check for duplicates
+        if len(set(placements)) != len(placements):
+            return False, "Each team must have a unique placement (no ties)."
+        
+        # Check for valid range (1 to number of teams)
+        if min(placements) < 1 or max(placements) > len(self.teams):
+            return False, f"Placements must be between 1 and {len(self.teams)}."
+        
+        # Check for consecutive placements (1, 2, 3, etc.)
+        expected_placements = set(range(1, len(self.teams) + 1))
+        if set(placements) != expected_placements:
+            return False, f"Must use placements 1 through {len(self.teams)} exactly once each."
+        
+        return True, ""
+    
+    def calculate_rating_change(self, placement: int) -> float:
+        """Calculate rating change based on placement (Rank 7 baseline system)"""
+        baseline_rank = 7
+        max_rank = 30
+        
+        if placement <= baseline_rank:
+            # Above baseline: scale from 0 to +25
+            if placement == baseline_rank:
+                return 0.0
+            performance_score = (baseline_rank - placement) / (baseline_rank - 1)
+            rating_change = performance_score * 25
+        else:
+            # Below baseline: scale from 0 to -40
+            if placement >= max_rank:
+                return -40.0
+            performance_score = (placement - baseline_rank) / (max_rank - baseline_rank)
+            rating_change = -performance_score * 40
+        
+        return rating_change
+    
+    async def submit_results(self, interaction: discord.Interaction):
+        """Submit the placement results"""
+        if self.result_sent:
+            await interaction.response.send_message("Results have already been submitted!", ephemeral=True)
+            return
+        
+        # Validate placements
+        is_valid, error_msg = self.validate_placements()
+        if not is_valid:
+            await interaction.response.send_message(f"❌ {error_msg}", ephemeral=True)
+            return
+        
+        self.result_sent = True
+        await interaction.response.defer()
+        
+        try:
+            # Import here to avoid circular imports
+            from services.api_client import api_client
+            
+            # Record placement-based result in database
+            result_data = await api_client.record_placement_result(
+                match_id=self.match_id,
+                team_placements=self.team_placements
+            )
+            
+            if not result_data:
+                embed = discord.Embed(
+                    title="❌ Database Error",
+                    description="Failed to record match result. Please try again.",
+                    color=Config.ERROR_COLOR
+                )
+                await interaction.followup.send(embed=embed, ephemeral=True)
+                return
+            
+            # Create success embed with rating changes
+            embed = discord.Embed(
+                title="✅ Placement Results Recorded",
+                description="Match results have been successfully recorded!",
+                color=Config.SUCCESS_COLOR,
+                timestamp=datetime.utcnow()
+            )
+            
+            # Show placement results with rating changes
+            results_text = []
+            for team_num in sorted(self.team_placements.keys()):
+                placement = self.team_placements[team_num]
+                rating_change = self.calculate_rating_change(placement)
+                
+                # Get team names
+                team = self.teams[team_num - 1]
+                team_names = [player['username'] for player in team]
+                team_display = ', '.join(team_names[:2])
+                if len(team_names) > 2:
+                    team_display += f" (+{len(team_names)-2} more)"
+                
+                # Add placement emoji
+                if placement == 1:
+                    emoji = "🥇"
+                elif placement == 2:
+                    emoji = "🥈"
+                elif placement == 3:
+                    emoji = "🥉"
+                else:
+                    emoji = f"{placement}."
+                
+                results_text.append(f"{emoji} **Team {team_num}**: {team_display} ({rating_change:+.1f} rating)")
+            
+            embed.add_field(
+                name="🏆 Final Placements",
+                value="\n".join(results_text),
+                inline=False
+            )
+            
+            # Disable all buttons
+            for item in self.children:
+                item.disabled = True
+            
+            await interaction.followup.send(embed=embed)
+            
+            # Clean up voice channels
+            if self.voice_manager:
+                try:
+                    await self.voice_manager.cleanup_team_channels()
+                except Exception as e:
+                    logger.error(f"Error cleaning up voice channels: {e}")
+            
+        except Exception as e:
+            logger.error(f"Error submitting placement results: {e}")
+            embed = discord.Embed(
+                title="❌ Submission Error",
+                description="An error occurred while recording results. Please try again.",
+                color=Config.ERROR_COLOR
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+
+class TeamPlacementButton(discord.ui.Button):
+    """Button for setting team placement"""
+    
+    def __init__(self, team_number: int, team_display: str, parent_view):
+        super().__init__(
+            label=f"Set Team {team_number} Placement",
+            style=discord.ButtonStyle.secondary,
+            emoji="📊"
+        )
+        self.team_number = team_number
+        self.team_display = team_display
+        self.parent_view = parent_view
+    
+    async def callback(self, interaction: discord.Interaction):
+        """Show placement input modal"""
+        modal = PlacementInputModal(self.team_number, self.team_display, self.parent_view)
+        await interaction.response.send_modal(modal)
+
+class PlacementInputModal(discord.ui.Modal):
+    """Modal for entering team placement"""
+    
+    def __init__(self, team_number: int, team_display: str, parent_view):
+        super().__init__(title=f"Set Placement for Team {team_number}")
+        self.team_number = team_number
+        self.team_display = team_display
+        self.parent_view = parent_view
+        
+        self.placement_input = discord.ui.TextInput(
+            label=f"Placement for {team_display}",
+            placeholder=f"Enter placement (1 = 1st place, 2 = 2nd place, etc.)",
+            min_length=1,
+            max_length=2,
+            required=True
+        )
+        self.add_item(self.placement_input)
+    
+    async def on_submit(self, interaction: discord.Interaction):
+        """Handle placement submission"""
+        try:
+            placement = int(self.placement_input.value)
+            
+            if placement < 1:
+                await interaction.response.send_message(
+                    "❌ Placement must be 1 or higher (1 = 1st place)",
+                    ephemeral=True
+                )
+                return
+            
+            if placement > len(self.parent_view.teams):
+                await interaction.response.send_message(
+                    f"❌ Placement cannot be higher than {len(self.parent_view.teams)} (total teams)",
+                    ephemeral=True
+                )
+                return
+            
+            # Check if placement is already taken
+            for team_num, existing_placement in self.parent_view.team_placements.items():
+                if existing_placement == placement and team_num != self.team_number:
+                    await interaction.response.send_message(
+                        f"❌ Placement {placement} is already assigned to Team {team_num}",
+                        ephemeral=True
+                    )
+                    return
+            
+            # Update placement
+            self.parent_view.update_team_placement(self.team_number, placement)
+            
+            # Calculate rating change for preview
+            rating_change = self.parent_view.calculate_rating_change(placement)
+            
+            # Update button label to show current placement
+            for item in self.parent_view.children:
+                if isinstance(item, TeamPlacementButton) and item.team_number == self.team_number:
+                    if placement == 1:
+                        emoji = "🥇"
+                    elif placement == 2:
+                        emoji = "🥈"
+                    elif placement == 3:
+                        emoji = "🥉"
+                    else:
+                        emoji = f"{placement}."
+                    
+                    item.label = f"Team {self.team_number}: {emoji} ({rating_change:+.1f})"
+                    item.style = discord.ButtonStyle.success
+                    break
+            
+            await interaction.response.edit_message(view=self.parent_view)
+            
+        except ValueError:
+            await interaction.response.send_message(
+                "❌ Please enter a valid number for placement",
+                ephemeral=True
+            )
+
+class SubmitPlacementResultsButton(discord.ui.Button):
+    """Button to submit all placement results"""
+    
+    def __init__(self):
+        super().__init__(
+            label="Submit Results",
+            style=discord.ButtonStyle.success,
+            emoji="✅",
+            disabled=True  # Disabled until all placements are set
+        )
+    
+    async def callback(self, interaction: discord.Interaction):
+        """Submit placement results"""
+        await self.view.submit_results(interaction)

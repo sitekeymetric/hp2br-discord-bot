@@ -446,5 +446,80 @@ class UserCommands(commands.Cog):
             )
             await interaction.followup.send(embed=embed, ephemeral=True)
 
+    @app_commands.command(name="rating_scale", description="Show the placement-based rating scale used for all matches")
+    async def rating_scale(self, interaction: discord.Interaction):
+        """Show the placement-based rating scale explanation"""
+        await interaction.response.defer()
+        
+        try:
+            embed = discord.Embed(
+                title="🏆 Placement-Based Rating Scale",
+                description="**All matches now use placement-based rating instead of simple win/loss**\n"
+                           "**Baseline**: Rank 7 = 1500 rating (no change)\n"
+                           "**Range**: +25 (1st place) to -40 (30th+ place)",
+                color=Config.EMBED_COLOR,
+                timestamp=datetime.utcnow()
+            )
+            
+            # Above baseline ratings
+            embed.add_field(
+                name="🏆 Above Baseline (Positive Ratings)",
+                value="🥇 **Rank 1**: +25.0 rating (Champion)\n"
+                      "🥈 **Rank 2**: +20.8 rating (Excellent)\n"
+                      "🥉 **Rank 3**: +16.7 rating (Great)\n"
+                      "🏆 **Rank 4**: +12.5 rating (Very Good)\n"
+                      "🏆 **Rank 5**: +8.3 rating (Good)\n"
+                      "🏆 **Rank 6**: +4.2 rating (Above Average)\n"
+                      "⚖️ **Rank 7**: ±0.0 rating (Baseline)",
+                inline=False
+            )
+            
+            # Below baseline ratings
+            embed.add_field(
+                name="📉 Below Baseline (Negative Ratings)",
+                value="📊 **Rank 8**: -1.7 rating (Slightly Below)\n"
+                      "📊 **Rank 10**: -5.2 rating (Poor)\n"
+                      "📉 **Rank 12**: -8.7 rating (Very Bad)\n"
+                      "📉 **Rank 15**: -13.9 rating (Bottom Tier)\n"
+                      "🔻 **Rank 18**: -19.1 rating (Disastrous)\n"
+                      "🔻 **Rank 20**: -22.6 rating (Abysmal)\n"
+                      "🔻 **Rank 25**: -31.3 rating (Rock Bottom)\n"
+                      "🔻 **Rank 30+**: -40.0 rating (Absolute Worst)",
+                inline=False
+            )
+            
+            # How it works
+            embed.add_field(
+                name="💡 How It Works",
+                value="• **Team Placement**: Your team's final ranking determines rating change\n"
+                      "• **Balanced System**: Easier to lose rating than gain it (realistic!)\n"
+                      "• **Recovery Time**: One bad game takes 2-3 good games to recover\n"
+                      "• **No Match Types**: Same scale for all matches (simple!)",
+                inline=False
+            )
+            
+            # Examples
+            embed.add_field(
+                name="🎮 Real Examples (1500 Rating Player)",
+                value="• **Great Game (Rank 2)**: 1500 → 1521 (+21)\n"
+                      "• **Good Game (Rank 4)**: 1500 → 1513 (+13)\n"
+                      "• **Poor Game (Rank 12)**: 1500 → 1491 (-9)\n"
+                      "• **Bad Luck Game (Rank 18)**: 1500 → 1481 (-19)\n"
+                      "• **Terrible Game (Rank 25)**: 1500 → 1469 (-31)",
+                inline=False
+            )
+            
+            embed.set_footer(text="This scale applies to all matches - no more simple win/loss!")
+            
+            await interaction.followup.send(embed=embed)
+            
+        except Exception as e:
+            logger.error(f"Error in rating_scale command: {e}")
+            embed = EmbedTemplates.error_embed(
+                "Rating Scale Error",
+                "Failed to display rating scale. Please try again later."
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+
 async def setup(bot):
     await bot.add_cog(UserCommands(bot))

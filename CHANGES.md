@@ -3,6 +3,17 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v2.0.0-build.1 - 2025-08-05
+
+### Changes
+- Implemented placement-based rating system (Rank 7 baseline) replacing win/loss system for all matches
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-05T17:37:13.905550
+
+---
+
 ## v1.9.6-build.1 - 2025-08-05
 
 ### Changes

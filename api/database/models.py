@@ -48,14 +48,14 @@ class MatchStatus(enum.Enum):
     CANCELLED = "cancelled"
 
 class ResultType(enum.Enum):
-    WIN_LOSS = "win_loss"
+    PLACEMENT = "placement"  # New: Placement-based results
     DRAW = "draw"
     FORFEIT = "forfeit"
     CANCELLED = "cancelled"
 
 class PlayerResult(enum.Enum):
-    WIN = "win"
-    LOSS = "loss"
+    WIN = "win"           # Kept for backward compatibility
+    LOSS = "loss"         # Kept for backward compatibility  
     DRAW = "draw"
     PENDING = "pending"
 
@@ -123,6 +123,7 @@ class MatchPlayer(Base):
     
     # Team Assignment
     team_number = Column(Integer, nullable=False)
+    team_placement = Column(Integer, nullable=True)  # NEW: Team's final placement (1st, 2nd, 3rd, etc.)
     
     # Rating History
     rating_mu_before = Column(Float, nullable=False)

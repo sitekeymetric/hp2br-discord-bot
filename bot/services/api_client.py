@@ -192,6 +192,14 @@ class APIClient:
         logger.info(f"Auto-registering user {username} ({user_id}) in guild {guild_id}")
         return await self.create_user(guild_id, user_id, username, region)
     
+    async def record_placement_result(self, match_id: str, team_placements: Dict[int, int]) -> Dict:
+        """Record placement-based match result"""
+        data = {
+            "team_placements": team_placements
+        }
+        result = await self._make_request("PUT", f"/matches/{match_id}/placement-result", data=data)
+        return result if result is not None else {}
+    
     async def close(self):
         """Close the HTTP session"""
         if self.session and not self.session.closed:
