@@ -88,7 +88,7 @@ class UserCommands(commands.Cog):
     @app_commands.describe(user="The user to show stats for (defaults to yourself)")
     async def stats(self, interaction: discord.Interaction, user: Optional[discord.Member] = None):
         """Display user statistics based only on COMPLETED matches"""
-        await interaction.response.defer()
+        await interaction.response.defer(ephemeral=True)
         
         target_user = user or interaction.user
         
@@ -141,7 +141,7 @@ class UserCommands(commands.Cog):
                             f"{target_user.display_name} is not registered in the system.\n\n"
                             f"They can get registered by joining the **Waiting Room** voice channel."
                         )
-                    await interaction.followup.send(embed=embed, ephemeral=True)
+                    await interaction.followup.send(embed=embed)
                     return
             
             # Get teammate statistics (top 3 teammates)
@@ -173,7 +173,7 @@ class UserCommands(commands.Cog):
                 "Stats Error",
                 "Failed to retrieve user statistics. Please try again later."
             )
-            await interaction.followup.send(embed=embed, ephemeral=True)
+            await interaction.followup.send(embed=embed)
     
     @app_commands.command(name="set_region", description="Update your region")
     @app_commands.describe(region="Your region (CA, TX, NY, KR, NA, EU)")

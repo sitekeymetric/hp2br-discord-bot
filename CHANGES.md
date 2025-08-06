@@ -3,6 +3,39 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v2.10.1-build.1 - 2025-08-06
+
+### Changes
+- Made /stats command ephemeral (only visible to user) like /set_region
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-06T09:37:22.261707
+
+---
+
+## v2.10.0-build.1 - 2025-08-06
+
+### Changes
+- Enhanced match history to show up to 4 teammates by name (was 3), better team visibility
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-06T09:34:03.396093
+
+---
+
+## v2.9.0-build.1 - 2025-08-06
+
+### Changes
+- Optimized match history display: removed 'with' and 'skill' words, show up to 3 full teammate names
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-06T09:32:25.196369
+
+---
+
 ## v2.8.0-build.1 - 2025-08-05
 
 ### Changes

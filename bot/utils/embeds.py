@@ -381,11 +381,11 @@ class EmbedTemplates:
                 
                 # Enhanced rating change display with skill context
                 if rating_change > 0:
-                    change_str = f" (**+{rating_change:.0f}** skill)"
+                    change_str = f" (**+{rating_change:.0f}**)"
                 elif rating_change < 0:
-                    change_str = f" (**{rating_change:.0f}** skill)"
+                    change_str = f" (**{rating_change:.0f}**)"
                 else:
-                    change_str = " (**±0** skill)"
+                    change_str = " (**±0**)"
             else:
                 # Fallback to old result-based emoji if no rating data
                 if result == "win":
@@ -403,11 +403,17 @@ class EmbedTemplates:
             if teammates:
                 teammate_names = [t['username'] for t in teammates]
                 if len(teammate_names) == 1:
-                    teammate_str = f" with {teammate_names[0]}"
+                    teammate_str = f" + {teammate_names[0]}"
                 elif len(teammate_names) == 2:
-                    teammate_str = f" with {teammate_names[0]} & {teammate_names[1]}"
-                elif len(teammate_names) > 2:
-                    teammate_str = f" with {teammate_names[0]} & {len(teammate_names)-1} others"
+                    teammate_str = f" + {teammate_names[0]}, {teammate_names[1]}"
+                elif len(teammate_names) == 3:
+                    teammate_str = f" + {teammate_names[0]}, {teammate_names[1]}, {teammate_names[2]}"
+                elif len(teammate_names) == 4:
+                    teammate_str = f" + {teammate_names[0]}, {teammate_names[1]}, {teammate_names[2]}, {teammate_names[3]}"
+                elif len(teammate_names) > 4:
+                    # Show first 3 names and count of remaining
+                    remaining = len(teammate_names) - 3
+                    teammate_str = f" + {teammate_names[0]}, {teammate_names[1]}, {teammate_names[2]} +{remaining}"
                 else:
                     teammate_str = ""
             else:

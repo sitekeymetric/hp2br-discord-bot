@@ -1,8 +1,8 @@
 {
   "major": 2,
-  "minor": 8,
-  "patch": 0,
+  "minor": 10,
+  "patch": 1,
   "build": 1,
-  "last_updated": "2025-08-05T23:55:26.248883",
-  "description": "Enhanced /match_history to show last 10 games by default, current rank, and detailed skill changes with improved visual indicators"
+  "last_updated": "2025-08-06T09:37:22.261707",
+  "description": "Made /stats command ephemeral (only visible to user) like /set_region"
 }
