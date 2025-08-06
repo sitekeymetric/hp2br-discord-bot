@@ -95,18 +95,54 @@ class UserCommands(commands.Cog):
             user_data = await api_client.get_user_completed_stats(interaction.guild.id, target_user.id)
             
             if not user_data:
-                if target_user == interaction.user:
-                    embed = EmbedTemplates.warning_embed(
-                        "Not Registered",
-                        "You're not registered yet! Use `/register` to join the team balance system."
+                # Check if user is in waiting room for auto-registration
+                from services.voice_manager import VoiceManager
+                voice_manager = VoiceManager()
+                waiting_members = await voice_manager.get_waiting_room_members(interaction.guild)
+                
+                if target_user in waiting_members:
+                    # Auto-register user found in waiting room
+                    logger.info(f"Auto-registering {target_user.display_name} from waiting room for /stats")
+                    user_data = await api_client.auto_register_user(
+                        guild_id=interaction.guild.id,
+                        user_id=target_user.id,
+                        username=target_user.display_name
                     )
-                else:
-                    embed = EmbedTemplates.warning_embed(
-                        "User Not Found",
-                        f"{target_user.display_name} is not registered in the system."
-                    )
-                await interaction.followup.send(embed=embed, ephemeral=True)
-                return
+                    
+                    if user_data:
+                        # Convert to completed stats format
+                        user_data = {
+                            'guild_id': user_data['guild_id'],
+                            'user_id': user_data['user_id'],
+                            'username': user_data['username'],
+                            'region_code': user_data.get('region_code'),
+                            'rating_mu': user_data['rating_mu'],
+                            'rating_sigma': user_data['rating_sigma'],
+                            'games_played': 0,  # New user has no completed matches
+                            'wins': 0,
+                            'losses': 0,
+                            'draws': 0,
+                            'created_at': user_data['created_at'],
+                            'last_updated': user_data['last_updated']
+                        }
+                
+                if not user_data:
+                    if target_user == interaction.user:
+                        embed = EmbedTemplates.warning_embed(
+                            "Not Registered",
+                            "You're not registered yet!\n\n"
+                            "**To get registered:**\n"
+                            "• Join the **Waiting Room** voice channel, then run `/stats` again\n"
+                            "• Or use `/register` to register manually"
+                        )
+                    else:
+                        embed = EmbedTemplates.warning_embed(
+                            "User Not Found",
+                            f"{target_user.display_name} is not registered in the system.\n\n"
+                            f"They can get registered by joining the **Waiting Room** voice channel."
+                        )
+                    await interaction.followup.send(embed=embed, ephemeral=True)
+                    return
             
             # Get teammate statistics (top 3 teammates)
             teammate_stats = await api_client.get_user_teammate_stats(
@@ -207,13 +243,38 @@ class UserCommands(commands.Cog):
         limit = max(1, min(limit, 25))
         
         try:
+            # Auto-register any players currently in waiting room
+            from services.voice_manager import VoiceManager
+            voice_manager = VoiceManager()
+            waiting_members = await voice_manager.get_waiting_room_members(interaction.guild)
+            
+            if waiting_members:
+                logger.info(f"Scanning {len(waiting_members)} waiting room members for auto-registration")
+                for member in waiting_members:
+                    try:
+                        # Check if already registered
+                        existing_user = await api_client.get_user(interaction.guild.id, member.id)
+                        if not existing_user:
+                            # Auto-register new player
+                            logger.info(f"Auto-registering {member.display_name} from waiting room for /leaderboard")
+                            await api_client.auto_register_user(
+                                guild_id=interaction.guild.id,
+                                user_id=member.id,
+                                username=member.display_name
+                            )
+                    except Exception as e:
+                        logger.error(f"Error auto-registering {member.display_name}: {e}")
+            
             # Get users with completed match statistics (includes users with 0 completed matches)
             users = await api_client.get_guild_users_completed_stats(interaction.guild.id)
             
             if not users:
                 embed = EmbedTemplates.warning_embed(
                     "No Players Found",
-                    "No players are registered in this guild yet!\nUse `/register` to be the first!"
+                    "No players are registered in this guild yet!\n\n"
+                    "**To get registered:**\n"
+                    "• Join the **Waiting Room** voice channel, then run `/leaderboard` again\n"
+                    "• Or use `/register` to register manually"
                 )
                 await interaction.followup.send(embed=embed)
                 return

@@ -1,8 +1,8 @@
 {
   "major": 2,
-  "minor": 2,
+  "minor": 3,
   "patch": 0,
   "build": 1,
-  "last_updated": "2025-08-05T18:17:59.203377",
-  "description": "Enhanced /match_history with color-coded icons based on rating changes: green (+10+), yellow (-9 to +9), red (-10+)"
+  "last_updated": "2025-08-05T18:37:34.461330",
+  "description": "Enhanced auto-registration: /stats and /leaderboard now auto-register players found in waiting room"
 }

@@ -3,6 +3,17 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v2.3.0-build.1 - 2025-08-05
+
+### Changes
+- Enhanced auto-registration: /stats and /leaderboard now auto-register players found in waiting room
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-05T18:37:34.461330
+
+---
+
 ## v2.2.0-build.1 - 2025-08-05
 
 ### Changes
