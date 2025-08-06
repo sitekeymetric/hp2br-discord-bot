@@ -128,7 +128,7 @@ class EmbedTemplates:
                     frequent_text.append(f"{i}. **{name}** - {games} games ({avg_skill:+.1f} avg skill)")
                 
                 embed.add_field(
-                    name="🤝 Most Frequent Partners",
+                    name="🤝 Most Frequent Teammates",
                     value="\n".join(frequent_text),
                     inline=False
                 )
@@ -518,7 +518,7 @@ class EmbedTemplates:
                 frequent_text.append(f"**{i}.** {name} {skill_emoji} - {games} games ({avg_skill:+.1f} avg skill)")
             
             embed.add_field(
-                name="🤝 Most Frequent Partners",
+                name="🤝 Most Frequent Teammates",
                 value="\n".join(frequent_text),
                 inline=False
             )
@@ -546,9 +546,9 @@ class EmbedTemplates:
             
             embed.add_field(
                 name="📈 Summary",
-                value=f"**{len(frequent_partners)}** frequent partners\n"
+                value=f"**{len(frequent_partners)}** frequent teammates\n"
                       f"**{total_games}** total games together\n"
-                      f"**{avg_skill_overall:+.1f}** overall avg skill with partners",
+                      f"**{avg_skill_overall:+.1f}** overall avg skill with teammates",
                 inline=False
             )
         

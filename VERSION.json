@@ -1,8 +1,8 @@
 {
   "major": 2,
   "minor": 11,
-  "patch": 0,
+  "patch": 1,
   "build": 1,
-  "last_updated": "2025-08-06T10:03:23.274618",
-  "description": "Enhanced teammate stats: two categories - Most Frequent Partners (top 5 with avg skill gain) and Championship Partners (top 5 with 1st place wins and win rate)"
+  "last_updated": "2025-08-06T10:06:47.400481",
+  "description": "Changed 'Most Frequent Partners' to 'Most Frequent Teammates' in stats display"
 }

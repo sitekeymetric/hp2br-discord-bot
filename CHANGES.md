@@ -3,6 +3,17 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v2.11.1-build.1 - 2025-08-06
+
+### Changes
+- Changed 'Most Frequent Partners' to 'Most Frequent Teammates' in stats display
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-06T10:06:47.400481
+
+---
+
 ## v2.11.0-build.1 - 2025-08-06
 
 ### Changes
