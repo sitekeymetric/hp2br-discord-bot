@@ -13,6 +13,154 @@ class TeamBalancer:
     def __init__(self):
         pass
     
+    async def create_teams_with_custom_sizes(self, members: List[discord.Member], team_sizes: List[int], guild_id: int, required_region: str = None) -> Tuple[List[List[Dict]], List[float], float]:
+        """
+        Create teams with custom specified sizes (e.g., [3, 3, 4] for 3:3:4 format)
+        """
+        # Get player ratings
+        players_with_ratings = await self._get_player_ratings(members, guild_id)
+        
+        # Validate total players match team sizes
+        total_required = sum(team_sizes)
+        if len(players_with_ratings) != total_required:
+            raise ValueError(f"Player count ({len(players_with_ratings)}) doesn't match required total ({total_required})")
+        
+        # Create teams with custom sizes
+        if required_region:
+            teams = self._create_custom_teams_with_region(players_with_ratings, team_sizes, required_region)
+        else:
+            teams = self._create_custom_teams(players_with_ratings, team_sizes)
+        
+        # Calculate team ratings and balance score
+        team_ratings = [self._calculate_team_rating(team) for team in teams]
+        balance_score = self._calculate_balance_score(team_ratings)
+        
+        return teams, team_ratings, balance_score
+    
+    def _create_custom_teams(self, players: List[Dict], team_sizes: List[int]) -> List[List[Dict]]:
+        """
+        Create teams with custom sizes using snake draft for balance
+        """
+        # Sort players by rating
+        sorted_players = sorted(
+            players,
+            key=lambda p: p['rating_mu'] - (p['rating_sigma'] * 0.5),
+            reverse=True
+        )
+        
+        # Initialize teams
+        teams = [[] for _ in range(len(team_sizes))]
+        
+        # Snake draft with size constraints
+        team_index = 0
+        direction = 1
+        
+        for player in sorted_players:
+            # Find next available team that isn't full
+            attempts = 0
+            while len(teams[team_index]) >= team_sizes[team_index] and attempts < len(team_sizes):
+                team_index += direction
+                
+                # Reverse direction when reaching ends
+                if team_index >= len(team_sizes):
+                    team_index = len(team_sizes) - 1
+                    direction = -1
+                elif team_index < 0:
+                    team_index = 0
+                    direction = 1
+                
+                attempts += 1
+            
+            # Add player to current team
+            teams[team_index].append(player)
+            
+            # Move to next team
+            team_index += direction
+            
+            # Reverse direction when reaching ends
+            if team_index >= len(team_sizes):
+                team_index = len(team_sizes) - 1
+                direction = -1
+            elif team_index < 0:
+                team_index = 0
+                direction = 1
+        
+        # Log team composition
+        for i, team in enumerate(teams):
+            team_names = [p['username'] for p in team]
+            team_ratings = [p['rating_mu'] for p in team]
+            avg_rating = sum(team_ratings) / len(team_ratings) if team_ratings else 0
+            logger.info(f"Custom Team {i+1} ({len(team)}/{team_sizes[i]} players): {team_names} (avg: {avg_rating:.1f})")
+        
+        return teams
+    
+    def _create_custom_teams_with_region(self, players: List[Dict], team_sizes: List[int], required_region: str) -> List[List[Dict]]:
+        """
+        Create teams with custom sizes and region requirement
+        """
+        # Separate players by region
+        region_players = [p for p in players if p.get('region_code') == required_region]
+        non_region_players = [p for p in players if p.get('region_code') != required_region]
+        
+        # Sort both groups by rating
+        region_players.sort(key=lambda p: p['rating_mu'] - (p['rating_sigma'] * 0.5), reverse=True)
+        non_region_players.sort(key=lambda p: p['rating_mu'] - (p['rating_sigma'] * 0.5), reverse=True)
+        
+        # Initialize teams
+        teams = [[] for _ in range(len(team_sizes))]
+        
+        # First, distribute regional players (one per team if possible)
+        for i in range(min(len(region_players), len(team_sizes))):
+            teams[i].append(region_players[i])
+        
+        # Add remaining regional players using custom distribution
+        remaining_region_players = region_players[len(team_sizes):]
+        if remaining_region_players:
+            self._distribute_players_custom(remaining_region_players, teams, team_sizes)
+        
+        # Distribute non-regional players using custom distribution
+        if non_region_players:
+            self._distribute_players_custom(non_region_players, teams, team_sizes)
+        
+        return teams
+    
+    def _distribute_players_custom(self, players: List[Dict], teams: List[List[Dict]], team_sizes: List[int]):
+        """
+        Distribute players to teams with custom size constraints
+        """
+        team_index = 0
+        direction = 1
+        
+        for player in players:
+            # Find next available team that isn't full
+            attempts = 0
+            while len(teams[team_index]) >= team_sizes[team_index] and attempts < len(team_sizes):
+                team_index += direction
+                
+                # Reverse direction when reaching ends
+                if team_index >= len(team_sizes):
+                    team_index = len(team_sizes) - 1
+                    direction = -1
+                elif team_index < 0:
+                    team_index = 0
+                    direction = 1
+                
+                attempts += 1
+            
+            # Add player to current team
+            teams[team_index].append(player)
+            
+            # Move to next team
+            team_index += direction
+            
+            # Reverse direction when reaching ends
+            if team_index >= len(team_sizes):
+                team_index = len(team_sizes) - 1
+                direction = -1
+            elif team_index < 0:
+                team_index = 0
+                direction = 1
+    
     async def create_balanced_teams(self, members: List[discord.Member], num_teams: int, guild_id: int, required_region: str = None) -> Tuple[List[List[Dict]], List[float], float]:
         """
         Main balancing algorithm with special cases for small player counts and region requirements

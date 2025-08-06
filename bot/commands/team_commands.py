@@ -26,11 +26,13 @@ class TeamCommands(commands.Cog):
     @app_commands.command(name="create_teams", description="Create balanced teams from waiting room")
     @app_commands.describe(
         num_teams="Number of teams to create (default: auto, max: 6)",
-        region="Require a player from this region in each team (CA, TX, NY, KR, NA, EU)"
+        region="Require a player from this region in each team (CA, TX, NY, KR, NA, EU)",
+        format="Custom team sizes (e.g., '3:3:4' for teams of 3, 3, and 4 players)"
     )
     async def create_teams(self, interaction: discord.Interaction, 
                           num_teams: Optional[int] = None, 
-                          region: Optional[str] = None):
+                          region: Optional[str] = None,
+                          format: Optional[str] = None):
         """Main team balancing functionality with special cases for small player counts and region requirements"""
         await interaction.response.defer()
         
@@ -42,6 +44,63 @@ class TeamCommands(commands.Cog):
                     embed = EmbedTemplates.error_embed(
                         "Invalid Region",
                         f"Valid regions are: {', '.join(Config.VALID_REGIONS)}"
+                    )
+                    await interaction.followup.send(embed=embed, ephemeral=True)
+                    return
+            
+            # Parse and validate format parameter if provided
+            custom_team_sizes = None
+            if format:
+                try:
+                    # Parse format like "3:3:4" into [3, 3, 4]
+                    custom_team_sizes = [int(x.strip()) for x in format.split(':')]
+                    
+                    # Validate format
+                    if len(custom_team_sizes) > 6:
+                        embed = EmbedTemplates.error_embed(
+                            "Too Many Teams",
+                            "Maximum 6 teams allowed in custom format."
+                        )
+                        await interaction.followup.send(embed=embed, ephemeral=True)
+                        return
+                    
+                    if len(custom_team_sizes) < 2:
+                        embed = EmbedTemplates.error_embed(
+                            "Invalid Format",
+                            "Need at least 2 teams. Example: `3:3` or `3:3:4`"
+                        )
+                        await interaction.followup.send(embed=embed, ephemeral=True)
+                        return
+                    
+                    if any(size < 1 for size in custom_team_sizes):
+                        embed = EmbedTemplates.error_embed(
+                            "Invalid Team Size",
+                            "All team sizes must be at least 1 player."
+                        )
+                        await interaction.followup.send(embed=embed, ephemeral=True)
+                        return
+                    
+                    if any(size > 8 for size in custom_team_sizes):
+                        embed = EmbedTemplates.error_embed(
+                            "Team Too Large",
+                            "Maximum 8 players per team."
+                        )
+                        await interaction.followup.send(embed=embed, ephemeral=True)
+                        return
+                    
+                    # Check if num_teams conflicts with format
+                    if num_teams is not None and num_teams != len(custom_team_sizes):
+                        embed = EmbedTemplates.error_embed(
+                            "Conflicting Parameters",
+                            f"Format specifies {len(custom_team_sizes)} teams but num_teams is {num_teams}. Use only one parameter."
+                        )
+                        await interaction.followup.send(embed=embed, ephemeral=True)
+                        return
+                    
+                except ValueError:
+                    embed = EmbedTemplates.error_embed(
+                        "Invalid Format",
+                        "Format must be numbers separated by colons. Example: `3:3:4`"
                     )
                     await interaction.followup.send(embed=embed, ephemeral=True)
                     return
@@ -83,11 +142,30 @@ class TeamCommands(commands.Cog):
                 await interaction.followup.send(embed=embed)
                 return
             
-            # Determine number of teams based on player count and special cases
+            # Validate custom format against actual player count
+            if custom_team_sizes:
+                required_players = sum(custom_team_sizes)
+                actual_players = len(waiting_members)
+                
+                if required_players != actual_players:
+                    embed = EmbedTemplates.error_embed(
+                        "Player Count Mismatch",
+                        f"Format `{format}` requires {required_players} players but there are {actual_players} players in the waiting room.\n"
+                        f"Either adjust the format or change the number of players."
+                    )
+                    await interaction.followup.send(embed=embed, ephemeral=True)
+                    return
+            
+            # Determine number of teams based on custom format or player count
             player_count = len(waiting_members)
             team_adjustment_msg = None  # Initialize for later use
             
-            if player_count <= Config.SINGLE_TEAM_THRESHOLD:
+            if custom_team_sizes:
+                # Use custom format
+                actual_num_teams = len(custom_team_sizes)
+                format_display = ':'.join(map(str, custom_team_sizes))
+                special_case_msg = f"**Custom Format**: {format_display} - creating teams with specified sizes"
+            elif player_count <= Config.SINGLE_TEAM_THRESHOLD:
                 # 1-4 players: Single team
                 actual_num_teams = 1
                 special_case_msg = f"**Special Case**: {player_count} players - creating single team for practice/warmup"
@@ -182,9 +260,16 @@ class TeamCommands(commands.Cog):
                     return
             
             # Create balanced teams
-            teams, team_ratings, balance_score = await self.team_balancer.create_balanced_teams(
-                waiting_members, actual_num_teams, interaction.guild.id, required_region=region
-            )
+            if custom_team_sizes:
+                # Use custom format
+                teams, team_ratings, balance_score = await self.team_balancer.create_teams_with_custom_sizes(
+                    waiting_members, custom_team_sizes, interaction.guild.id, required_region=region
+                )
+            else:
+                # Use standard balancing
+                teams, team_ratings, balance_score = await self.team_balancer.create_balanced_teams(
+                    waiting_members, actual_num_teams, interaction.guild.id, required_region=region
+                )
             
             # Validate teams
             if not self.team_balancer.validate_teams(teams, waiting_members):

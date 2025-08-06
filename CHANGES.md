@@ -3,6 +3,17 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v2.7.0-build.1 - 2025-08-05
+
+### Changes
+- Added custom team format parameter to /create_teams (e.g., format='3:3:4' creates teams of 3, 3, and 4 players)
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-05T22:42:07.848523
+
+---
+
 ## v2.6.0-build.1 - 2025-08-05
 
 ### Changes
