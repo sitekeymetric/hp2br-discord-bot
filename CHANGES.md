@@ -3,6 +3,17 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v2.1.2-build.1 - 2025-08-05
+
+### Changes
+- Fixed API data format issue causing 422 error when submitting placement results
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-05T18:05:24.811060
+
+---
+
 ## v2.1.1-build.1 - 2025-08-05
 
 ### Changes

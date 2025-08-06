@@ -5,7 +5,7 @@ from database.models import User, MatchPlayer, MatchStatus, PlayerResult, Result
 from services.match_service import MatchService
 from services.user_service import UserService
 from services.rating_service import GlickoRatingService, Rating
-from schemas.match_schemas import MatchCreate, MatchPlayerCreate, MatchResultUpdate, MatchResponse, MatchPlayerResponse
+from schemas.match_schemas import MatchCreate, MatchPlayerCreate, MatchResultUpdate, MatchResponse, MatchPlayerResponse, PlacementResultUpdate
 from typing import List
 from uuid import UUID
 from datetime import datetime
@@ -164,9 +164,12 @@ def get_user_match_history(guild_id: int, user_id: int, limit: int = 20, db: Ses
     return MatchService.get_user_match_history(db, guild_id, user_id, limit)
 
 @router.put("/{match_id}/placement-result")
-def record_placement_result(match_id: str, team_placements: dict, db: Session = Depends(get_db)):
+def record_placement_result(match_id: str, placement_data: PlacementResultUpdate, db: Session = Depends(get_db)):
     """Record placement-based match result"""
     try:
+        # Extract team_placements from the Pydantic model
+        team_placements = placement_data.team_placements
+        
         # Validate match exists and is pending
         match = MatchService.get_match(db, match_id)
         if not match:

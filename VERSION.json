@@ -1,8 +1,8 @@
 {
   "major": 2,
   "minor": 1,
-  "patch": 1,
+  "patch": 2,
   "build": 1,
-  "last_updated": "2025-08-05T18:00:28.329072",
-  "description": "Fixed missing end_game method in PlacementResultView causing End Game button error"
+  "last_updated": "2025-08-05T18:05:24.811060",
+  "description": "Fixed API data format issue causing 422 error when submitting placement results"
 }

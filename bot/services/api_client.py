@@ -194,10 +194,11 @@ class APIClient:
     
     async def record_placement_result(self, match_id: str, team_placements: Dict[int, int]) -> Dict:
         """Record placement-based match result"""
+        # Wrap team_placements in the expected format for PlacementResultUpdate model
         data = {
             "team_placements": team_placements
         }
-        result = await self._make_request("PUT", f"/matches/{match_id}/placement-result", data=data)
+        result = await self._make_request("PUT", f"/matches/{match_id}/placement-result", json=data)
         return result if result is not None else {}
     
     async def close(self):

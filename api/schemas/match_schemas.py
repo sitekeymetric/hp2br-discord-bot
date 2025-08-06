@@ -17,6 +17,9 @@ class MatchResultUpdate(BaseModel):
     result_type: str  # "win_loss", "draw", "cancelled"
     winning_team: Optional[int] = None
 
+class PlacementResultUpdate(BaseModel):
+    team_placements: dict  # team_number -> placement mapping
+
 class MatchPlayerResponse(BaseModel):
     user_id: int
     guild_id: int
