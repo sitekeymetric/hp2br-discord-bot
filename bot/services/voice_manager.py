@@ -55,14 +55,15 @@ class VoiceManager:
                     logger.info(f"Using existing team channel: {channel_name}")
                     continue
                 
-                # Create new channel
+                # Create new channel with open permissions
+                # Only give bot special permissions, let everyone else join freely
                 overwrites = {
-                    guild.default_role: discord.PermissionOverwrite(connect=False),
                     guild.me: discord.PermissionOverwrite(
                         connect=True,
                         move_members=True,
                         manage_channels=True
                     )
+                    # Removed guild.default_role restriction - channels are now open
                 }
                 
                 channel = await guild.create_voice_channel(
@@ -106,20 +107,8 @@ class VoiceManager:
             for team_idx, (team, channel) in enumerate(zip(teams, team_channels)):
                 logger.info(f"Processing Team {team_idx + 1}: {len(team)} players -> {channel.name}")
                 
-                # Set permissions for team members first
-                for member in team:
-                    try:
-                        await channel.set_permissions(
-                            member,
-                            connect=True,
-                            speak=True,
-                            reason=f"Team {team_idx + 1} member"
-                        )
-                        logger.debug(f"Set permissions for {member.display_name}")
-                    except discord.Forbidden:
-                        logger.error(f"No permission to set channel permissions for {member.display_name}")
-                    except Exception as e:
-                        logger.warning(f"Could not set permissions for {member.display_name}: {e}")
+                # Skip permission setting - channels are now open for everyone
+                # This allows players to freely join/leave team channels
                 
                 # Move members to team channel
                 for member in team:

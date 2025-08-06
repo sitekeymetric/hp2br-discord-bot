@@ -3,6 +3,17 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v2.5.0-build.1 - 2025-08-05
+
+### Changes
+- Made team voice channels open - players can freely join/leave without permission restrictions
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-05T21:17:56.184136
+
+---
+
 ## v2.4.0-build.1 - 2025-08-05
 
 ### Changes

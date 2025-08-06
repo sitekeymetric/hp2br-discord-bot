@@ -1,8 +1,8 @@
 {
   "major": 2,
-  "minor": 4,
+  "minor": 5,
   "patch": 0,
   "build": 1,
-  "last_updated": "2025-08-05T21:00:43.706265",
-  "description": "Enhanced team generation to prioritize minimum 3 players per team with smarter default team counts"
+  "last_updated": "2025-08-05T21:17:56.184136",
+  "description": "Made team voice channels open - players can freely join/leave without permission restrictions"
 }
