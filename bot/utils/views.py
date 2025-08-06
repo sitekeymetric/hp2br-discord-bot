@@ -524,7 +524,7 @@ class SubmitResultsButton(discord.ui.Button):
     
     def __init__(self):
         super().__init__(
-            label="Submit Results",
+            label="Finalize Results",
             style=discord.ButtonStyle.success,
             emoji="📝",
             disabled=True  # Disabled until all teams have results
@@ -533,7 +533,7 @@ class SubmitResultsButton(discord.ui.Button):
     async def callback(self, interaction: discord.Interaction):
         """Handle result submission"""
         # Log user action
-        print(f"[USER ACTION] {interaction.user.display_name} ({interaction.user.id}) clicked 'Submit Results' button in guild {interaction.guild.name} ({interaction.guild.id})")
+        print(f"[USER ACTION] {interaction.user.display_name} ({interaction.user.id}) clicked 'Finalize Results' button in guild {interaction.guild.name} ({interaction.guild.id})")
         await self.view.submit_results(interaction)
 
 class EndGameButton(discord.ui.Button):
@@ -916,6 +916,9 @@ class PlacementResultView(discord.ui.View):
             for item in self.children:
                 item.disabled = True
             
+            # Update the original message to show disabled buttons
+            await interaction.edit_original_response(view=self)
+            
             await interaction.followup.send(embed=embed)
             
             # Clean up voice channels (similar to /cleanup command)
@@ -1062,7 +1065,7 @@ class SubmitPlacementResultsButton(discord.ui.Button):
     
     def __init__(self):
         super().__init__(
-            label="Submit Results",
+            label="Finalize Results",
             style=discord.ButtonStyle.success,
             emoji="✅",
             disabled=True  # Disabled until all placements are set

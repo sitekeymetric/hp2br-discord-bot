@@ -453,7 +453,7 @@ class TeamCommands(commands.Cog):
                       "2. Enter 1 for 1st place, 2 for 2nd place, etc.\n"
                       "3. **Guild matches**: Use consecutive ranks (1, 2, 3...)\n"
                       "4. **External competitions**: Use actual ranks (1-30)\n"
-                      "5. Click 'Submit Results' when all placements are set",
+                      "5. Click 'Finalize Results' when all placements are set",
                 inline=False
             )
             

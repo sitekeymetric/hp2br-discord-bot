@@ -3,6 +3,28 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v2.12.2-build.1 - 2025-08-06
+
+### Changes
+- Changed Submit Results button to Finalize Results for better clarity
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-06T10:49:51.787924
+
+---
+
+## v2.12.1-build.1 - 2025-08-06
+
+### Changes
+- Fixed /record_result UI to show disabled buttons after Submit Results is clicked
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-06T10:43:56.945787
+
+---
+
 ## v2.12.0-build.1 - 2025-08-06
 
 ### Changes
