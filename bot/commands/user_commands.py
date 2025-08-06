@@ -322,7 +322,7 @@ class UserCommands(commands.Cog):
                            user: Optional[discord.Member] = None, 
                            limit: Optional[int] = 10):
         """Display completed match history only"""
-        await interaction.response.defer()
+        await interaction.response.defer(ephemeral=True)
         
         target_user = user or interaction.user
         limit = max(1, min(limit, 10))
@@ -336,7 +336,7 @@ class UserCommands(commands.Cog):
                     "User Not Found",
                     f"{target_user.display_name} is not registered in the system."
                 )
-                await interaction.followup.send(embed=embed, ephemeral=True)
+                await interaction.followup.send(embed=embed)
                 return
             
             # Get completed match history only
@@ -368,7 +368,7 @@ class UserCommands(commands.Cog):
                 "History Error",
                 "Failed to retrieve match history. Please try again later."
             )
-            await interaction.followup.send(embed=embed, ephemeral=True)
+            await interaction.followup.send(embed=embed)
     
     async def _get_user_rank(self, guild_id: int, user_id: int) -> int:
         """Get user's current rank in the guild leaderboard"""

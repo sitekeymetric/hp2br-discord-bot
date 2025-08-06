@@ -3,6 +3,17 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v2.10.2-build.1 - 2025-08-06
+
+### Changes
+- Made /match_history command ephemeral (only visible to user) like /stats and /set_region
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-06T09:44:24.652460
+
+---
+
 ## v2.10.1-build.1 - 2025-08-06
 
 ### Changes
