@@ -3,6 +3,17 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v2.3.2-build.1 - 2025-08-05
+
+### Changes
+- Fixed Discord modal field length limits causing Team 2+ placement input errors
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-05T20:39:33.669651
+
+---
+
 ## v2.3.1-build.1 - 2025-08-05
 
 ### Changes

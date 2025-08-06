@@ -711,9 +711,22 @@ class PlacementResultView(discord.ui.View):
         # Create placement input for each team
         for i, team in enumerate(teams):
             team_names = [player['username'] for player in team]
-            team_display = f"Team {i+1}: {', '.join(team_names[:3])}"
+            
+            # Truncate usernames to prevent long strings
+            truncated_names = []
+            for name in team_names[:3]:
+                if len(name) > 12:  # Truncate long usernames
+                    truncated_names.append(name[:9] + "...")
+                else:
+                    truncated_names.append(name)
+            
+            team_display = f"Team {i+1}: {', '.join(truncated_names)}"
             if len(team_names) > 3:
-                team_display += f" (+{len(team_names)-3} more)"
+                team_display += f" (+{len(team_names)-3})"
+            
+            # Ensure team_display doesn't exceed reasonable length
+            if len(team_display) > 35:
+                team_display = team_display[:32] + "..."
             
             # Add team placement button
             button = TeamPlacementButton(
@@ -948,14 +961,29 @@ class PlacementInputModal(discord.ui.Modal):
     """Modal for entering team placement"""
     
     def __init__(self, team_number: int, team_display: str, parent_view):
-        super().__init__(title=f"Set Placement for Team {team_number}")
+        # Truncate title to Discord's 45 character limit
+        title = f"Set Placement for Team {team_number}"
+        if len(title) > 45:
+            title = title[:42] + "..."
+        
+        super().__init__(title=title)
         self.team_number = team_number
         self.team_display = team_display
         self.parent_view = parent_view
         
+        # Truncate label to Discord's 45 character limit
+        label = f"Placement for Team {team_number}"
+        if len(label) > 45:
+            label = label[:42] + "..."
+        
+        # Truncate placeholder to Discord's 100 character limit
+        placeholder = "Enter placement (1-30, where 1 = 1st place)"
+        if len(placeholder) > 100:
+            placeholder = placeholder[:97] + "..."
+        
         self.placement_input = discord.ui.TextInput(
-            label=f"Placement for {team_display}",
-            placeholder=f"Enter placement (1-30, where 1 = 1st place)",
+            label=label,
+            placeholder=placeholder,
             min_length=1,
             max_length=2,
             required=True
