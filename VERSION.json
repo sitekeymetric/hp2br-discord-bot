@@ -1,8 +1,8 @@
 {
   "major": 2,
-  "minor": 7,
+  "minor": 8,
   "patch": 0,
   "build": 1,
-  "last_updated": "2025-08-05T22:42:07.848523",
-  "description": "Added custom team format parameter to /create_teams (e.g., format='3:3:4' creates teams of 3, 3, and 4 players)"
+  "last_updated": "2025-08-05T23:55:26.248883",
+  "description": "Enhanced /match_history to show last 10 games by default, current rank, and detailed skill changes with improved visual indicators"
 }

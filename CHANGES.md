@@ -3,6 +3,17 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v2.8.0-build.1 - 2025-08-05
+
+### Changes
+- Enhanced /match_history to show last 10 games by default, current rank, and detailed skill changes with improved visual indicators
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-05T23:55:26.248883
+
+---
+
 ## v2.7.0-build.1 - 2025-08-05
 
 ### Changes

@@ -285,8 +285,8 @@ class EmbedTemplates:
         return embed
     
     @staticmethod
-    def match_history_embed(matches: List[Dict], username: str = None) -> discord.Embed:
-        """Match history display with enhanced date formatting"""
+    def match_history_embed(matches: List[Dict], username: str = None, current_rank: int = 0, current_rating: float = 0) -> discord.Embed:
+        """Match history display with rank and enhanced skill change information"""
         title = f"📋 Match History"
         if username:
             title += f" - {username}"
@@ -296,6 +296,15 @@ class EmbedTemplates:
             color=Config.EMBED_COLOR,
             timestamp=datetime.utcnow()
         )
+        
+        # Add current rank and rating info
+        if current_rank > 0:
+            rank_emoji = "🥇" if current_rank == 1 else "🥈" if current_rank == 2 else "🥉" if current_rank == 3 else f"#{current_rank}"
+            embed.add_field(
+                name="📊 Current Status",
+                value=f"**Rank:** {rank_emoji} | **Rating:** {current_rating:.0f}",
+                inline=False
+            )
         
         if not matches:
             embed.description = "No completed match history found."
@@ -342,39 +351,51 @@ class EmbedTemplates:
                 except:
                     date_str = "??/??"
             
-            # Rating change information and color-coded emoji
+            # Enhanced rating change information with result context
             rating_before = match.get("rating_mu_before", 0)
             rating_after = match.get("rating_mu_after", 0)
+            result = match.get("result", "pending")
             
             if rating_after and rating_before:
                 rating_change = rating_after - rating_before
                 
-                # Color-coded emoji based on rating change
-                if rating_change >= 10:  # 10+ points gain
-                    result_emoji = "🟢"  # Green for good gains
-                elif rating_change >= -9:  # -9 to +9 points
-                    result_emoji = "🟡"  # Yellow for small changes
-                else:  # -10 or worse
-                    result_emoji = "🔴"  # Red for significant losses
-                
-                # Format rating change display
-                if rating_change > 0:
-                    change_str = f" (+{rating_change:.0f})"
-                elif rating_change < 0:
-                    change_str = f" ({rating_change:.0f})"
+                # Result-based emoji with rating change context
+                if result == "win":
+                    if rating_change >= 15:
+                        result_emoji = "🟢"  # Great win
+                    elif rating_change >= 5:
+                        result_emoji = "🔵"  # Good win
+                    else:
+                        result_emoji = "🟡"  # Small win gain
+                elif result == "loss":
+                    if rating_change <= -15:
+                        result_emoji = "🔴"  # Bad loss
+                    elif rating_change <= -5:
+                        result_emoji = "🟠"  # Moderate loss
+                    else:
+                        result_emoji = "🟡"  # Small loss
+                elif result == "draw":
+                    result_emoji = "⚪"  # Draw
                 else:
-                    change_str = " (±0)"
+                    result_emoji = "⚫"  # Unknown
+                
+                # Enhanced rating change display with skill context
+                if rating_change > 0:
+                    change_str = f" (**+{rating_change:.0f}** skill)"
+                elif rating_change < 0:
+                    change_str = f" (**{rating_change:.0f}** skill)"
+                else:
+                    change_str = " (**±0** skill)"
             else:
                 # Fallback to old result-based emoji if no rating data
-                result = match.get("result", "pending")
                 if result == "win":
                     result_emoji = "🟢"
                 elif result == "loss":
                     result_emoji = "🔴"
                 elif result == "draw":
-                    result_emoji = "🟡"
-                else:
                     result_emoji = "⚪"
+                else:
+                    result_emoji = "⚫"
                 change_str = ""
             
             # Teammate information
@@ -396,8 +417,8 @@ class EmbedTemplates:
         
         embed.description = "\n".join(history_text)
         
-        # Add footer with explanation of color coding
-        embed.set_footer(text="🟢 +10+ rating | 🟡 -9 to +9 rating | 🔴 -10+ rating loss")
+        # Add enhanced footer with explanation of color coding
+        embed.set_footer(text="🟢 Great Win | 🔵 Good Win | 🟠 Moderate Loss | 🔴 Bad Loss | ⚪ Draw | 🟡 Small Change")
         
         return embed
     

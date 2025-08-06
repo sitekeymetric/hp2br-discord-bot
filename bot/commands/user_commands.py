@@ -316,11 +316,11 @@ class UserCommands(commands.Cog):
     @app_commands.command(name="match_history", description="Show recent completed match history")
     @app_commands.describe(
         user="The user to show history for (defaults to yourself)",
-        limit="Number of completed matches to show (default: 5, max: 10)"
+        limit="Number of completed matches to show (default: 10, max: 10)"
     )
     async def match_history(self, interaction: discord.Interaction, 
                            user: Optional[discord.Member] = None, 
-                           limit: Optional[int] = 5):
+                           limit: Optional[int] = 10):
         """Display completed match history only"""
         await interaction.response.defer()
         
@@ -346,21 +346,14 @@ class UserCommands(commands.Cog):
                 limit=limit
             )
             
-            embed = EmbedTemplates.match_history_embed(
-                matches=matches,
-                username=target_user.display_name
-            )
-            
-            # Add note about completed matches only
-            embed.add_field(
-                name="📊 History Note",
-                value="Only **completed matches** are shown.\nPending or cancelled matches are not included.",
-                inline=False
-            )
+            # Get user's current rank for display
+            current_rank = await self._get_user_rank(interaction.guild.id, target_user.id)
             
             embed = EmbedTemplates.match_history_embed(
                 matches=matches,
-                username=target_user.display_name
+                username=target_user.display_name,
+                current_rank=current_rank,
+                current_rating=user_data.get('rating_mu', 0)
             )
             
             # Set user avatar if available
@@ -376,6 +369,25 @@ class UserCommands(commands.Cog):
                 "Failed to retrieve match history. Please try again later."
             )
             await interaction.followup.send(embed=embed, ephemeral=True)
+    
+    async def _get_user_rank(self, guild_id: int, user_id: int) -> int:
+        """Get user's current rank in the guild leaderboard"""
+        try:
+            # Get all users with completed stats, sorted by rating
+            all_users = await api_client.get_guild_users_completed_stats(guild_id)
+            
+            # Sort by rating (descending)
+            sorted_users = sorted(all_users, key=lambda x: x.get('rating_mu', 0), reverse=True)
+            
+            # Find user's position
+            for i, user_data in enumerate(sorted_users, 1):
+                if user_data.get('user_id') == user_id:
+                    return i
+            
+            return len(sorted_users) + 1  # If not found, put at end
+        except Exception as e:
+            logger.error(f"Error getting user rank: {e}")
+            return 0  # Return 0 if error
     
 
     @app_commands.command(name="delete_account", description="Delete your account from the system")
