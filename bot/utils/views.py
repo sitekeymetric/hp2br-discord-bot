@@ -812,10 +812,15 @@ class PlacementResultView(discord.ui.View):
         
         await interaction.response.edit_message(embed=embed, view=self)
         
-        # Clean up voice channels
+        # Clean up voice channels (similar to /cleanup command)
         if self.voice_manager:
             try:
-                await self.voice_manager.cleanup_team_channels()
+                # Pass the guild argument that cleanup_team_channels expects
+                await self.voice_manager.cleanup_team_channels(interaction.guild, return_to_waiting=True)
+                
+                # Clear the active match
+                self.voice_manager.clear_active_match(interaction.guild.id)
+                
             except Exception as e:
                 logger.error(f"Error cleaning up voice channels: {e}")
         
@@ -900,10 +905,15 @@ class PlacementResultView(discord.ui.View):
             
             await interaction.followup.send(embed=embed)
             
-            # Clean up voice channels
+            # Clean up voice channels (similar to /cleanup command)
             if self.voice_manager:
                 try:
-                    await self.voice_manager.cleanup_team_channels()
+                    # Pass the guild argument that cleanup_team_channels expects
+                    await self.voice_manager.cleanup_team_channels(interaction.guild, return_to_waiting=True)
+                    
+                    # Clear the active match
+                    self.voice_manager.clear_active_match(interaction.guild.id)
+                    
                 except Exception as e:
                     logger.error(f"Error cleaning up voice channels: {e}")
             

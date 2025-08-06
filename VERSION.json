@@ -1,8 +1,8 @@
 {
   "major": 2,
   "minor": 1,
-  "patch": 2,
+  "patch": 3,
   "build": 1,
-  "last_updated": "2025-08-05T18:05:24.811060",
-  "description": "Fixed API data format issue causing 422 error when submitting placement results"
+  "last_updated": "2025-08-05T18:12:31.628663",
+  "description": "Fixed End Game button voice channel cleanup to work like /cleanup command"
 }

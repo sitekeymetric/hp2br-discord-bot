@@ -3,6 +3,17 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v2.1.3-build.1 - 2025-08-05
+
+### Changes
+- Fixed End Game button voice channel cleanup to work like /cleanup command
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-05T18:12:31.628663
+
+---
+
 ## v2.1.2-build.1 - 2025-08-05
 
 ### Changes
