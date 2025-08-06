@@ -1,8 +1,8 @@
 {
   "major": 2,
-  "minor": 3,
-  "patch": 2,
+  "minor": 4,
+  "patch": 0,
   "build": 1,
-  "last_updated": "2025-08-05T20:39:33.669651",
-  "description": "Fixed Discord modal field length limits causing Team 2+ placement input errors"
+  "last_updated": "2025-08-05T21:00:43.706265",
+  "description": "Enhanced team generation to prioritize minimum 3 players per team with smarter default team counts"
 }

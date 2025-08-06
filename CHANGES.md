@@ -3,6 +3,28 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v2.4.0-build.1 - 2025-08-05
+
+### Changes
+- Enhanced team generation to prioritize minimum 3 players per team with smarter default team counts
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-05T21:00:43.706265
+
+---
+
+## v2.3.3-build.1 - 2025-08-05
+
+### Changes
+- Fixed /delete_account foreign key constraint error by implementing soft delete system
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-05T20:54:55.940341
+
+---
+
 ## v2.3.2-build.1 - 2025-08-05
 
 ### Changes

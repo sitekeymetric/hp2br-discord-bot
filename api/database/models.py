@@ -83,6 +83,7 @@ class User(Base):
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     last_updated = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    deleted_at = Column(DateTime, nullable=True)  # Soft delete timestamp
     
     # Relationships
     match_participations = relationship("MatchPlayer", back_populates="user")

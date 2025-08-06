@@ -24,6 +24,7 @@ class Config:
     MIN_PLAYERS_FOR_TEAMS = 1  # Changed to allow special cases
     MAX_PLAYERS_PER_MATCH = 24
     DEFAULT_NUM_TEAMS = 3
+    MIN_PLAYERS_PER_TEAM = 3  # Minimum players per team for balanced matches
     
     # Special case thresholds
     SINGLE_TEAM_THRESHOLD = 4  # 1-4 players = single team

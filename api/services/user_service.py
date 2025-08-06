@@ -15,16 +15,20 @@ class UserService:
     
     @staticmethod
     def get_user(db: Session, guild_id: int, user_id: int) -> Optional[User]:
-        """Get user by guild_id and user_id"""
+        """Get user by guild_id and user_id (excludes soft-deleted users)"""
         return db.query(User).filter(
             User.guild_id == guild_id,
-            User.user_id == user_id
+            User.user_id == user_id,
+            User.deleted_at.is_(None)  # Exclude soft-deleted users
         ).first()
     
     @staticmethod
     def get_guild_users(db: Session, guild_id: int) -> List[User]:
-        """Get all users in a guild"""
-        return db.query(User).filter(User.guild_id == guild_id).all()
+        """Get all users in a guild (excludes soft-deleted users)"""
+        return db.query(User).filter(
+            User.guild_id == guild_id,
+            User.deleted_at.is_(None)  # Exclude soft-deleted users
+        ).all()
     
     @staticmethod
     def get_guild_users_with_completed_stats(db: Session, guild_id: int) -> List[dict]:
@@ -151,14 +155,23 @@ class UserService:
     
     @staticmethod
     def delete_user(db: Session, guild_id: int, user_id: int) -> bool:
-        """Delete a user from the database"""
+        """Soft delete a user from the database (preserves match history)"""
         user = UserService.get_user(db, guild_id, user_id)
         if not user:
             return False
         
-        db.delete(user)
-        db.commit()
-        return True
+        try:
+            # Soft delete: set deleted_at timestamp instead of actually deleting
+            from datetime import datetime
+            user.deleted_at = datetime.utcnow()
+            user.username = f"[DELETED] {user.username}"  # Mark as deleted in username
+            
+            db.commit()
+            return True
+            
+        except Exception as e:
+            db.rollback()
+            raise e
     
     @staticmethod
     def get_user_teammate_stats(db: Session, guild_id: int, user_id: int, limit: int = 10):
