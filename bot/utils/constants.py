@@ -30,6 +30,11 @@ class Config:
     SINGLE_TEAM_THRESHOLD = 4  # 1-4 players = single team
     TWO_TEAM_THRESHOLD = 5     # 5 players = 2 teams (2:3 split)
     
+    # Team Randomization Settings
+    RATING_BAND_SIZE = 100  # Group players within 100 rating points for shuffling
+    MIN_RANDOMIZATION_PLAYERS = 4  # Only randomize if 4+ players in rating band
+    SIMILAR_RATING_THRESHOLD = 25.0  # Shuffle players within 25 rating points
+    
     # Region codes for validation
     VALID_REGIONS = ["CA", "TX", "NY", "KR", "NA", "EU"]
     

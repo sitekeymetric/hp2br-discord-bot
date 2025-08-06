@@ -3,6 +3,17 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v2.12.0-build.1 - 2025-08-06
+
+### Changes
+- Added controlled randomization to team balancing: rating band shuffling, similar rating randomization, and random starting teams for variety while maintaining balance
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-06T10:19:25.387356
+
+---
+
 ## v2.11.1-build.1 - 2025-08-06
 
 ### Changes

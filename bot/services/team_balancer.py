@@ -39,7 +39,7 @@ class TeamBalancer:
     
     def _create_custom_teams(self, players: List[Dict], team_sizes: List[int]) -> List[List[Dict]]:
         """
-        Create teams with custom sizes using snake draft for balance
+        Create teams with custom sizes using snake draft for balance with randomization
         """
         # Sort players by rating
         sorted_players = sorted(
@@ -48,12 +48,18 @@ class TeamBalancer:
             reverse=True
         )
         
+        # Apply controlled randomization for variety while maintaining balance
+        sorted_players = self._shuffle_rating_bands(sorted_players)
+        sorted_players = self._randomize_similar_ratings(sorted_players)
+        
         # Initialize teams
         teams = [[] for _ in range(len(team_sizes))]
         
-        # Snake draft with size constraints
-        team_index = 0
+        # Snake draft with size constraints and random starting team
+        team_index = self._get_random_starting_team(len(team_sizes))
         direction = 1
+        
+        logger.debug(f"Custom teams: Starting snake draft with team {team_index + 1} (randomized)")
         
         for player in sorted_players:
             # Find next available team that isn't full
@@ -319,10 +325,84 @@ class TeamBalancer:
         
         return [team1, team2]
     
+    def _shuffle_rating_bands(self, players: List[Dict]) -> List[Dict]:
+        """
+        Group players by rating bands and shuffle within each band
+        Preserves overall skill distribution while adding variety
+        """
+        if len(players) < Config.MIN_RANDOMIZATION_PLAYERS:
+            return players  # Not enough players to benefit from randomization
+        
+        # Group players into rating bands
+        rating_bands = {}
+        
+        for player in players:
+            rating = player['rating_mu']
+            # Calculate band (e.g., 1500-1599, 1600-1699)
+            band = int(rating // Config.RATING_BAND_SIZE) * Config.RATING_BAND_SIZE
+            
+            if band not in rating_bands:
+                rating_bands[band] = []
+            rating_bands[band].append(player)
+        
+        # Shuffle within each band (only if band has multiple players)
+        shuffled_players = []
+        for band in sorted(rating_bands.keys(), reverse=True):  # Process high to low rating bands
+            band_players = rating_bands[band]
+            if len(band_players) >= 2:  # Only shuffle if 2+ players in band
+                random.shuffle(band_players)
+                logger.debug(f"Shuffled {len(band_players)} players in rating band {band}-{band + Config.RATING_BAND_SIZE - 1}")
+            shuffled_players.extend(band_players)
+        
+        return shuffled_players
+    
+    def _randomize_similar_ratings(self, players: List[Dict], threshold: float = None) -> List[Dict]:
+        """
+        When players have very similar ratings (within threshold), 
+        randomly shuffle their order to break ties
+        """
+        if threshold is None:
+            threshold = Config.SIMILAR_RATING_THRESHOLD
+        
+        if len(players) < 2:
+            return players
+        
+        randomized_players = []
+        i = 0
+        
+        while i < len(players):
+            # Find all players with similar rating to current player
+            current_rating = players[i]['rating_mu']
+            similar_group = [players[i]]
+            j = i + 1
+            
+            # Group players with similar ratings
+            while j < len(players) and abs(players[j]['rating_mu'] - current_rating) <= threshold:
+                similar_group.append(players[j])
+                j += 1
+            
+            # Shuffle the group if it has multiple players
+            if len(similar_group) > 1:
+                random.shuffle(similar_group)
+                logger.debug(f"Shuffled {len(similar_group)} players with similar ratings around {current_rating:.0f}")
+            
+            randomized_players.extend(similar_group)
+            i = j
+        
+        return randomized_players
+    
+    def _get_random_starting_team(self, num_teams: int) -> int:
+        """
+        Randomly select which team gets the first player in snake draft
+        Prevents Team 1 from always getting the best player
+        """
+        return random.randint(0, num_teams - 1)
+    
     def _snake_draft_balance(self, players: List[Dict], num_teams: int) -> List[List[Dict]]:
         """
         Snake draft algorithm with improved team size distribution:
         - Sort players by rating (highest to lowest)
+        - Apply controlled randomization for variety
         - Calculate optimal team sizes for even distribution
         - Distribute using snake pattern within size constraints
         """
@@ -332,6 +412,10 @@ class TeamBalancer:
             key=lambda p: p['rating_mu'] - (p['rating_sigma'] * 0.5),
             reverse=True
         )
+        
+        # Apply controlled randomization for variety while maintaining balance
+        sorted_players = self._shuffle_rating_bands(sorted_players)
+        sorted_players = self._randomize_similar_ratings(sorted_players)
         
         # Calculate optimal team sizes for even distribution
         total_players = len(sorted_players)
@@ -349,9 +433,11 @@ class TeamBalancer:
         # Initialize teams
         teams = [[] for _ in range(num_teams)]
         
-        # Snake draft distribution with size constraints
-        team_index = 0
+        # Snake draft distribution with size constraints and random starting team
+        team_index = self._get_random_starting_team(num_teams)
         direction = 1  # 1 for forward, -1 for backward
+        
+        logger.debug(f"Starting snake draft with team {team_index + 1} (randomized)")
         
         for player in sorted_players:
             # Find next available team in snake order
