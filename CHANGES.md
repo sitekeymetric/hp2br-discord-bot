@@ -3,6 +3,17 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v2.6.0-build.1 - 2025-08-05
+
+### Changes
+- Enhanced team distribution algorithm to ensure optimal team sizes (9 players = 3:3:3, 10 players = 4:3:3, etc.)
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-05T22:36:09.725319
+
+---
+
 ## v2.5.3-build.1 - 2025-08-05
 
 ### Changes
