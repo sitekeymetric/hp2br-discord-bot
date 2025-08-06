@@ -1,10 +1,10 @@
-"""Add soft delete support to users table
+"""Add soft delete support to users table in team_balance.db
 
 This migration adds a deleted_at column to the users table to support soft deletes.
 This preserves match history integrity while allowing users to be "deleted".
 
 Usage:
-    python add_soft_delete_to_users.py
+    python add_soft_delete_to_team_balance_db.py
 
 """
 
@@ -19,39 +19,20 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 def get_database_url():
-    """Get database URL from environment or use default"""
+    """Get database URL from environment or use the same default as the API"""
     return os.getenv("DATABASE_URL", "sqlite:///./team_balance.db")
 
 def run_migration():
-    """Add deleted_at column to users table, creating tables if needed"""
+    """Add deleted_at column to users table in team_balance.db"""
     
-    # Get database URL
+    # Get database URL (should point to team_balance.db)
     database_url = get_database_url()
     logger.info(f"Using database: {database_url}")
     engine = create_engine(database_url)
     
     try:
         with engine.connect() as conn:
-            # Check if users table exists
-            result = conn.execute(text("""
-                SELECT name FROM sqlite_master 
-                WHERE type='table' AND name='users'
-            """))
-            
-            if not result.fetchone():
-                logger.info("Users table doesn't exist. Creating database tables first...")
-                
-                # Import and create all tables
-                try:
-                    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-                    from database.models import Base
-                    Base.metadata.create_all(bind=engine)
-                    logger.info("✅ Database tables created successfully")
-                except Exception as e:
-                    logger.error(f"❌ Failed to create tables: {e}")
-                    raise
-            
-            # Now check if deleted_at column exists
+            # Check if column already exists (SQLite specific)
             result = conn.execute(text("PRAGMA table_info(users)"))
             columns = [row[1] for row in result.fetchall()]  # row[1] is column name
             

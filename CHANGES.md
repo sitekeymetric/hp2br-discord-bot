@@ -3,6 +3,28 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v2.5.3-build.1 - 2025-08-05
+
+### Changes
+- Created comprehensive database migration system with deployment scripts to fix production database issues
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-05T21:45:02.792660
+
+---
+
+## v2.5.2-build.1 - 2025-08-05
+
+### Changes
+- Fixed /leaderboard and /stats errors by applying soft-delete migration to correct database file (team_balance.db)
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-05T21:41:54.726871
+
+---
+
 ## v2.5.1-build.1 - 2025-08-05
 
 ### Changes
