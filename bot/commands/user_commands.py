@@ -144,11 +144,11 @@ class UserCommands(commands.Cog):
                     await interaction.followup.send(embed=embed)
                     return
             
-            # Get teammate statistics (top 3 teammates)
+            # Get teammate statistics (top 5 for each category)
             teammate_stats = await api_client.get_user_teammate_stats(
                 guild_id=interaction.guild.id,
                 user_id=target_user.id,
-                limit=3
+                limit=5
             )
             
             # Create stats embed with completed match data and teammate info

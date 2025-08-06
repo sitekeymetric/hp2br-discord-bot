@@ -178,21 +178,28 @@ class UserService:
     
     @staticmethod
     def get_user_teammate_stats(db: Session, guild_id: int, user_id: int, limit: int = 10):
-        """Get teammate statistics for a user - who they play with most and win rates"""
+        """Get two categories of teammate statistics for a user"""
         from sqlalchemy import func, and_, case
         
-        # First, get all matches where the user participated and completed
-        user_matches = db.query(MatchPlayer.match_id, MatchPlayer.team_number, MatchPlayer.result).filter(
+        # Get all matches where the user participated and completed
+        user_matches = db.query(
+            MatchPlayer.match_id, 
+            MatchPlayer.team_number, 
+            MatchPlayer.result,
+            MatchPlayer.team_placement,
+            MatchPlayer.rating_mu_before,
+            MatchPlayer.rating_mu_after
+        ).filter(
             MatchPlayer.guild_id == guild_id,
             MatchPlayer.user_id == user_id
         ).join(Match).filter(
             Match.status == MatchStatus.COMPLETED
         ).all()
         
-        # Create a dictionary to track teammate statistics
+        # Create dictionaries to track teammate statistics
         teammate_stats = {}
         
-        for user_match_id, user_team_number, user_result in user_matches:
+        for user_match_id, user_team_number, user_result, user_placement, rating_before, rating_after in user_matches:
             # Find all other players who were on the same team in this match
             teammates_in_match = db.query(MatchPlayer).filter(
                 MatchPlayer.match_id == user_match_id,
@@ -200,6 +207,14 @@ class UserService:
                 MatchPlayer.user_id != user_id,  # Exclude the user themselves
                 MatchPlayer.guild_id == guild_id
             ).all()
+            
+            # Calculate skill change for this match
+            skill_change = 0
+            if rating_after and rating_before:
+                skill_change = rating_after - rating_before
+            
+            # Track if this was a 1st place finish
+            is_first_place = user_placement == 1 if user_placement else False
             
             # Update statistics for each teammate
             for teammate in teammates_in_match:
@@ -209,43 +224,55 @@ class UserService:
                     teammate_stats[teammate_id] = {
                         'games_together': 0,
                         'wins_together': 0,
-                        'losses_together': 0,
-                        'draws_together': 0
+                        'first_place_wins': 0,
+                        'total_skill_change': 0
                     }
                 
                 teammate_stats[teammate_id]['games_together'] += 1
+                teammate_stats[teammate_id]['total_skill_change'] += skill_change
                 
                 if user_result == PlayerResult.WIN:
                     teammate_stats[teammate_id]['wins_together'] += 1
-                elif user_result == PlayerResult.LOSS:
-                    teammate_stats[teammate_id]['losses_together'] += 1
-                elif user_result == PlayerResult.DRAW:
-                    teammate_stats[teammate_id]['draws_together'] += 1
+                
+                if is_first_place:
+                    teammate_stats[teammate_id]['first_place_wins'] += 1
         
-        # Convert to list and add user information
-        result = []
+        # Create two separate result lists
+        frequent_partners = []
+        championship_partners = []
+        
         for teammate_id, stats in teammate_stats.items():
             # Get teammate user info (exclude soft-deleted users)
             teammate_user = db.query(User).filter(
                 User.guild_id == guild_id,
                 User.user_id == teammate_id,
-                User.deleted_at.is_(None)  # Exclude soft-deleted users
+                User.deleted_at.is_(None)
             ).first()
             
             if teammate_user and stats['games_together'] > 0:
+                avg_skill_change = stats['total_skill_change'] / stats['games_together']
                 win_rate = (stats['wins_together'] / stats['games_together'] * 100)
                 
-                result.append({
-                    'teammate_id': teammate_id,
+                # Most Frequent Partners (by games together)
+                frequent_partners.append({
                     'teammate_username': teammate_user.username,
                     'games_together': stats['games_together'],
-                    'wins_together': stats['wins_together'],
-                    'losses_together': stats['losses_together'],
-                    'draws_together': stats['draws_together'],
-                    'win_rate': win_rate
+                    'avg_skill_change': avg_skill_change
                 })
+                
+                # Championship Partners (by 1st place wins)
+                if stats['first_place_wins'] > 0:
+                    championship_partners.append({
+                        'teammate_username': teammate_user.username,
+                        'first_place_wins': stats['first_place_wins'],
+                        'win_rate': win_rate
+                    })
         
-        # Sort by games together (most frequent teammates first), then by win rate
-        result.sort(key=lambda x: (x['games_together'], x['win_rate']), reverse=True)
+        # Sort both categories
+        frequent_partners.sort(key=lambda x: x['games_together'], reverse=True)
+        championship_partners.sort(key=lambda x: x['first_place_wins'], reverse=True)
         
-        return result[:limit]
+        return {
+            'frequent_partners': frequent_partners[:5],
+            'championship_partners': championship_partners[:5]
+        }

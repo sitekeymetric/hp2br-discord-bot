@@ -3,6 +3,28 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v2.11.0-build.1 - 2025-08-06
+
+### Changes
+- Enhanced teammate stats: two categories - Most Frequent Partners (top 5 with avg skill gain) and Championship Partners (top 5 with 1st place wins and win rate)
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-06T10:03:23.274618
+
+---
+
+## v2.10.3-build.1 - 2025-08-06
+
+### Changes
+- Fixed Member Since calculation in /stats to handle datetime objects correctly, now shows proper account age
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-06T09:46:08.050115
+
+---
+
 ## v2.10.2-build.1 - 2025-08-06
 
 ### Changes

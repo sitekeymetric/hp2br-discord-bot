@@ -71,41 +71,84 @@ class EmbedTemplates:
         # Account age
         if created_at:
             try:
-                created_date = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
-                days_since = (datetime.utcnow() - created_date.replace(tzinfo=None)).days
+                # Handle both datetime objects and ISO strings
+                if isinstance(created_at, str):
+                    created_date = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                else:
+                    # created_at is already a datetime object
+                    created_date = created_at
+                
+                # Calculate days since creation (remove timezone info for comparison)
+                if created_date.tzinfo is not None:
+                    created_date = created_date.replace(tzinfo=None)
+                
+                days_since = (datetime.utcnow() - created_date).days
+                
+                if days_since == 0:
+                    value = "Today"
+                elif days_since == 1:
+                    value = "1 day ago"
+                else:
+                    value = f"{days_since} days ago"
+                
                 embed.add_field(
                     name="📅 Member Since",
-                    value=f"{days_since} days ago",
+                    value=value,
                     inline=True
                 )
-            except:
-                pass
+            except Exception as e:
+                # If there's still an error, show a debug-friendly message
+                embed.add_field(
+                    name="📅 Member Since",
+                    value="Unknown",
+                    inline=True
+                )
         
         # Add teammate information if available
-        if teammate_stats and len(teammate_stats) > 0:
-            teammate_text = []
-            for teammate in teammate_stats[:3]:  # Show top 3 teammates
-                teammate_name = teammate['teammate_username']
-                games_together = teammate['games_together']
-                win_rate_together = teammate['win_rate']
+        if teammate_stats:
+            # Most Frequent Partners
+            frequent_partners = teammate_stats.get('frequent_partners', [])
+            if frequent_partners:
+                frequent_text = []
+                for i, partner in enumerate(frequent_partners, 1):
+                    name = partner['teammate_username']
+                    games = partner['games_together']
+                    avg_skill = partner['avg_skill_change']
+                    
+                    # Skill change emoji
+                    if avg_skill >= 10:
+                        skill_emoji = "🔥"
+                    elif avg_skill >= 5:
+                        skill_emoji = "✅"
+                    elif avg_skill >= 0:
+                        skill_emoji = "⚖️"
+                    else:
+                        skill_emoji = "⚠️"
+                    
+                    frequent_text.append(f"{i}. **{name}** - {games} games ({avg_skill:+.1f} avg skill)")
                 
-                # Win rate emoji
-                if win_rate_together >= 70:
-                    rate_emoji = "🔥"
-                elif win_rate_together >= 60:
-                    rate_emoji = "✅"
-                elif win_rate_together >= 50:
-                    rate_emoji = "⚖️"
-                else:
-                    rate_emoji = "⚠️"
-                
-                teammate_text.append(f"{rate_emoji} **{teammate_name}** - {games_together} games ({win_rate_together:.0f}%)")
+                embed.add_field(
+                    name="🤝 Most Frequent Partners",
+                    value="\n".join(frequent_text),
+                    inline=False
+                )
             
-            embed.add_field(
-                name="🤝 Top Teammates",
-                value="\n".join(teammate_text) if teammate_text else "No teammate data available",
-                inline=False
-            )
+            # Championship Partners
+            championship_partners = teammate_stats.get('championship_partners', [])
+            if championship_partners:
+                championship_text = []
+                for i, partner in enumerate(championship_partners, 1):
+                    name = partner['teammate_username']
+                    first_wins = partner['first_place_wins']
+                    win_rate = partner['win_rate']
+                    
+                    championship_text.append(f"{i}. **{name}** - {first_wins} wins ({win_rate:.0f}% win rate)")
+                
+                embed.add_field(
+                    name="🏆 Championship Partners",
+                    value="\n".join(championship_text),
+                    inline=False
+                )
         
         # Add footer with rating explanation
         embed.set_footer(text="Rating shows skill level ± uncertainty. Lower uncertainty = more accurate rating.")
@@ -429,7 +472,7 @@ class EmbedTemplates:
         return embed
     
     @staticmethod
-    def teammate_stats_embed(teammate_stats: List[Dict], username: str = None) -> discord.Embed:
+    def teammate_stats_embed(teammate_stats: Dict, username: str = None) -> discord.Embed:
         """Teammate statistics display showing most frequent teammates and win rates"""
         title = f"🤝 Teammate Statistics"
         if username:
@@ -441,7 +484,11 @@ class EmbedTemplates:
             timestamp=datetime.utcnow()
         )
         
-        if not teammate_stats:
+        # Check if we have any data
+        frequent_partners = teammate_stats.get('frequent_partners', [])
+        championship_partners = teammate_stats.get('championship_partners', [])
+        
+        if not frequent_partners and not championship_partners:
             embed.description = "No teammate data found. Play some matches with other players to see statistics!"
             embed.add_field(
                 name="ℹ️ Note",
@@ -450,49 +497,63 @@ class EmbedTemplates:
             )
             return embed
         
-        # Create teammate list
-        teammate_text = []
-        for i, teammate in enumerate(teammate_stats, 1):
-            teammate_name = teammate['teammate_username']
-            games_together = teammate['games_together']
-            wins_together = teammate['wins_together']
-            win_rate = teammate['win_rate']
+        # Most Frequent Partners
+        if frequent_partners:
+            frequent_text = []
+            for i, partner in enumerate(frequent_partners, 1):
+                name = partner['teammate_username']
+                games = partner['games_together']
+                avg_skill = partner['avg_skill_change']
+                
+                # Skill change emoji
+                if avg_skill >= 10:
+                    skill_emoji = "🔥"
+                elif avg_skill >= 5:
+                    skill_emoji = "✅"
+                elif avg_skill >= 0:
+                    skill_emoji = "⚖️"
+                else:
+                    skill_emoji = "⚠️"
+                
+                frequent_text.append(f"**{i}.** {name} {skill_emoji} - {games} games ({avg_skill:+.1f} avg skill)")
             
-            # Win rate emoji
-            if win_rate >= 70:
-                rate_emoji = "🔥"  # Hot streak
-            elif win_rate >= 60:
-                rate_emoji = "✅"  # Good
-            elif win_rate >= 50:
-                rate_emoji = "⚖️"  # Balanced
-            elif win_rate >= 40:
-                rate_emoji = "⚠️"  # Below average
-            else:
-                rate_emoji = "❌"  # Poor
-            
-            teammate_text.append(
-                f"**{i}.** {teammate_name} {rate_emoji}\n"
-                f"   📊 {games_together} games • {win_rate:.1f}% win rate • {wins_together} wins"
+            embed.add_field(
+                name="🤝 Most Frequent Partners",
+                value="\n".join(frequent_text),
+                inline=False
             )
         
-        embed.description = "\n\n".join(teammate_text)
+        # Championship Partners
+        if championship_partners:
+            championship_text = []
+            for i, partner in enumerate(championship_partners, 1):
+                name = partner['teammate_username']
+                first_wins = partner['first_place_wins']
+                win_rate = partner['win_rate']
+                
+                championship_text.append(f"**{i}.** {name} - {first_wins} wins ({win_rate:.0f}% win rate)")
+            
+            embed.add_field(
+                name="🏆 Championship Partners",
+                value="\n".join(championship_text),
+                inline=False
+            )
         
         # Add summary statistics
-        if teammate_stats:
-            total_games_with_teammates = sum(t['games_together'] for t in teammate_stats)
-            total_wins_with_teammates = sum(t['wins_together'] for t in teammate_stats)
-            overall_teammate_win_rate = (total_wins_with_teammates / total_games_with_teammates * 100) if total_games_with_teammates > 0 else 0
+        if frequent_partners:
+            total_games = sum(p['games_together'] for p in frequent_partners)
+            avg_skill_overall = sum(p['avg_skill_change'] * p['games_together'] for p in frequent_partners) / total_games if total_games > 0 else 0
             
             embed.add_field(
                 name="📈 Summary",
-                value=f"**{len(teammate_stats)}** frequent teammates\n"
-                      f"**{total_games_with_teammates}** total games together\n"
-                      f"**{overall_teammate_win_rate:.1f}%** overall win rate with teammates",
+                value=f"**{len(frequent_partners)}** frequent partners\n"
+                      f"**{total_games}** total games together\n"
+                      f"**{avg_skill_overall:+.1f}** overall avg skill with partners",
                 inline=False
             )
         
         # Add footer with explanation
-        embed.set_footer(text="🔥 70%+ | ✅ 60%+ | ⚖️ 50%+ | ⚠️ 40%+ | ❌ <40% win rate")
+        embed.set_footer(text="🔥 +10 skill | ✅ +5 skill | ⚖️ 0+ skill | ⚠️ negative skill")
         
         return embed
     

@@ -1,8 +1,8 @@
 {
   "major": 2,
-  "minor": 10,
-  "patch": 2,
+  "minor": 11,
+  "patch": 0,
   "build": 1,
-  "last_updated": "2025-08-06T09:44:24.652460",
-  "description": "Made /match_history command ephemeral (only visible to user) like /stats and /set_region"
+  "last_updated": "2025-08-06T10:03:23.274618",
+  "description": "Enhanced teammate stats: two categories - Most Frequent Partners (top 5 with avg skill gain) and Championship Partners (top 5 with 1st place wins and win rate)"
 }
