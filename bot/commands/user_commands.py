@@ -9,6 +9,7 @@ from services.api_client import api_client
 from services.voice_manager import VoiceManager
 from utils.embeds import EmbedTemplates
 from utils.constants import Config, VALID_REGIONS
+from utils.version import get_bot_footer_text
 
 logger = logging.getLogger(__name__)
 
@@ -529,9 +530,9 @@ class UserCommands(commands.Cog):
                 description="**All matches now use placement-based rating instead of simple win/loss**\n"
                            "**Baseline**: Rank 7 = 1500 rating (no change)\n"
                            "**Range**: +25 (1st place) to -40 (30th+ place)",
-                color=Config.EMBED_COLOR,
-                timestamp=datetime.utcnow()
+                color=Config.EMBED_COLOR
             )
+            embed.set_footer(text=get_bot_footer_text())
             
             # Above baseline ratings
             embed.add_field(

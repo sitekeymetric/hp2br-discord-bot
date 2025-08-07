@@ -2,6 +2,7 @@ import discord
 from datetime import datetime
 from typing import List, Dict, Optional, Any
 from utils.constants import Config, TEAM_EMOJIS
+from utils.version import get_bot_footer_text
 
 class EmbedTemplates:
     """Discord embed templates for consistent UI"""
@@ -28,8 +29,7 @@ class EmbedTemplates:
         
         embed = discord.Embed(
             title=f"📊 Stats for {username}",
-            color=Config.EMBED_COLOR,
-            timestamp=datetime.utcnow()
+            color=Config.EMBED_COLOR
         )
         
         # Rating information
@@ -150,8 +150,8 @@ class EmbedTemplates:
                     inline=False
                 )
         
-        # Add footer with rating explanation
-        embed.set_footer(text="Rating shows skill level ± uncertainty. Lower uncertainty = more accurate rating.")
+        # Add footer with version
+        embed.set_footer(text=get_bot_footer_text())
         
         return embed
     
@@ -173,8 +173,7 @@ class EmbedTemplates:
         embed = discord.Embed(
             title=title,
             description=description,
-            color=Config.EMBED_COLOR,
-            timestamp=datetime.utcnow()
+            color=Config.EMBED_COLOR
         )
         
         for i, (team, avg_rating) in enumerate(zip(teams, team_ratings)):
@@ -224,11 +223,8 @@ class EmbedTemplates:
                 inline=False
             )
         
-        # Adjust footer for different team configurations
-        if len(teams) == 1:
-            embed.set_footer(text="Click 'Create Team' to proceed.")
-        else:
-            embed.set_footer(text="Click 'Create Team' to proceed.")
+        # Add footer with version
+        embed.set_footer(text=get_bot_footer_text())
         
         return embed
     
@@ -253,8 +249,7 @@ class EmbedTemplates:
         
         embed = discord.Embed(
             title=title,
-            color=color,
-            timestamp=datetime.utcnow()
+            color=color
         )
         
         if rating_changes:
@@ -279,7 +274,7 @@ class EmbedTemplates:
                     inline=False
                 )
         
-        embed.set_footer(text="Ratings updated successfully!")
+        embed.set_footer(text=get_bot_footer_text())
         
         return embed
     
@@ -288,8 +283,7 @@ class EmbedTemplates:
         """Guild leaderboard display"""
         embed = discord.Embed(
             title=f"🏆 {guild_name} Leaderboard",
-            color=Config.EMBED_COLOR,
-            timestamp=datetime.utcnow()
+            color=Config.EMBED_COLOR
         )
         
         if not users:
@@ -323,7 +317,9 @@ class EmbedTemplates:
         embed.description = "\n".join(leaderboard_text)
         
         if total_pages > 1:
-            embed.set_footer(text=f"Page {page}/{total_pages}")
+            embed.set_footer(text=f"Page {page}/{total_pages} • {get_bot_footer_text()}")
+        else:
+            embed.set_footer(text=get_bot_footer_text())
         
         return embed
     
@@ -336,8 +332,7 @@ class EmbedTemplates:
         
         embed = discord.Embed(
             title=title,
-            color=Config.EMBED_COLOR,
-            timestamp=datetime.utcnow()
+            color=Config.EMBED_COLOR
         )
         
         # Add current rank and rating info
@@ -466,8 +461,8 @@ class EmbedTemplates:
         
         embed.description = "\n".join(history_text)
         
-        # Add enhanced footer with explanation of color coding
-        embed.set_footer(text="🟢 Great Win | 🔵 Good Win | 🟠 Moderate Loss | 🔴 Bad Loss | ⚪ Draw | 🟡 Small Change")
+        # Add footer with version
+        embed.set_footer(text=get_bot_footer_text())
         
         return embed
     
@@ -480,8 +475,7 @@ class EmbedTemplates:
         
         embed = discord.Embed(
             title=title,
-            color=Config.EMBED_COLOR,
-            timestamp=datetime.utcnow()
+            color=Config.EMBED_COLOR
         )
         
         # Check if we have any data
@@ -552,8 +546,8 @@ class EmbedTemplates:
                 inline=False
             )
         
-        # Add footer with explanation
-        embed.set_footer(text="🔥 +10 skill | ✅ +5 skill | ⚖️ 0+ skill | ⚠️ negative skill")
+        # Add footer with version
+        embed.set_footer(text=get_bot_footer_text())
         
         return embed
     
@@ -567,7 +561,9 @@ class EmbedTemplates:
         )
         
         if ephemeral_hint:
-            embed.set_footer(text="This message is only visible to you.")
+            embed.set_footer(text=f"This message is only visible to you • {get_bot_footer_text()}")
+        else:
+            embed.set_footer(text=get_bot_footer_text())
         
         return embed
     
@@ -579,6 +575,7 @@ class EmbedTemplates:
             description=description,
             color=Config.SUCCESS_COLOR
         )
+        embed.set_footer(text=get_bot_footer_text())
         return embed
     
     @staticmethod
@@ -589,4 +586,5 @@ class EmbedTemplates:
             description=description,
             color=Config.WARNING_COLOR
         )
+        embed.set_footer(text=get_bot_footer_text())
         return embed

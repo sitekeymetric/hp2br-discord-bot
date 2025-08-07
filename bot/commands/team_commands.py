@@ -12,6 +12,7 @@ from services.team_balancer import TeamBalancer
 from utils.embeds import EmbedTemplates
 from utils.views import TeamProposalView
 from utils.constants import Config
+from utils.version import get_bot_footer_text
 
 logger = logging.getLogger(__name__)
 
@@ -418,9 +419,9 @@ class TeamCommands(commands.Cog):
                            f"**Teams in Match**: {len(teams)}\n"
                            f"**Rating System**: Rank 7 = 1500 baseline (no change)\n"
                            f"**Range**: +25 (1st place) to -40 (30th+ place)",
-                color=Config.EMBED_COLOR,
-                timestamp=datetime.utcnow()
+                color=Config.EMBED_COLOR
             )
+            embed.set_footer(text=get_bot_footer_text())
             
             # Show teams
             team_list = []

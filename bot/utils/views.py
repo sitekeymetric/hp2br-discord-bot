@@ -4,6 +4,7 @@ import logging
 from typing import Dict, List, Any
 from datetime import datetime
 from utils.constants import Config
+from utils.version import get_bot_footer_text
 
 logger = logging.getLogger(__name__)
 
@@ -815,9 +816,9 @@ class PlacementResultView(discord.ui.View):
         embed = discord.Embed(
             title="🔚 Game Ended",
             description="The match has been ended without recording results.\nNo ratings were changed.",
-            color=Config.WARNING_COLOR,
-            timestamp=datetime.utcnow()
+            color=Config.WARNING_COLOR
         )
+        embed.set_footer(text=get_bot_footer_text())
         
         # Disable all buttons
         for item in self.children:
@@ -877,8 +878,7 @@ class PlacementResultView(discord.ui.View):
             embed = discord.Embed(
                 title="✅ Placement Results Recorded",
                 description="Match results have been successfully recorded!",
-                color=Config.SUCCESS_COLOR,
-                timestamp=datetime.utcnow()
+                color=Config.SUCCESS_COLOR
             )
             
             # Show placement results with rating changes
@@ -911,6 +911,8 @@ class PlacementResultView(discord.ui.View):
                 value="\n".join(results_text),
                 inline=False
             )
+            
+            embed.set_footer(text=get_bot_footer_text())
             
             # Disable all buttons
             for item in self.children:

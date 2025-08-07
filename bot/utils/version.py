@@ -44,6 +44,11 @@ def get_version_embed_field() -> Dict[str, str]:
         "inline": True
     }
 
+def get_bot_footer_text() -> str:
+    """Get bot footer text with version"""
+    version_string = get_version_string()
+    return f"Paizen bot {version_string}"
+
 def print_startup_version():
     """Print version information at bot startup"""
     info = get_version_info()
