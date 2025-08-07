@@ -1,8 +1,8 @@
 {
   "major": 2,
   "minor": 13,
-  "patch": 0,
+  "patch": 1,
   "build": 1,
-  "last_updated": "2025-08-06T17:36:40.842697",
-  "description": "Replaced redundant timestamps with Paizen bot version number in all Discord embeds for better branding and less clutter"
+  "last_updated": "2025-08-07T00:00:00.000000",
+  "description": "Removed leaderboard note and descriptive text for cleaner leaderboard display"
 }

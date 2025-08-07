@@ -3,6 +3,17 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v2.13.1-build.1 - 2025-08-07
+
+### Changes
+- Removed leaderboard note and descriptive text for cleaner leaderboard display
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-07T00:00:00.000000
+
+---
+
 ## v2.13.0-build.1 - 2025-08-06
 
 ### Changes

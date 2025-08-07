@@ -289,20 +289,6 @@ class UserCommands(commands.Cog):
                 guild_name=interaction.guild.name
             )
             
-            # Count users with and without completed matches
-            users_with_matches = len([u for u in users if u.get("games_played", 0) > 0])
-            users_without_matches = len(users) - users_with_matches
-            
-            # Add informative note
-            note_text = "Rankings are based on **rating and completed matches**."
-            if users_without_matches > 0:
-                note_text += f"\n{users_without_matches} player(s) shown have not completed matches yet."
-            
-            embed.add_field(
-                name="📊 Leaderboard Note",
-                value=note_text,
-                inline=False
-            )
             
             await interaction.followup.send(embed=embed)
             
