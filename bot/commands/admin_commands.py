@@ -638,6 +638,50 @@ class AdminCommands(commands.Cog):
                 "An error occurred while resetting the rating. Please try again later."
             )
             await interaction.edit_original_response(embed=embed, view=None)
+    
+    @app_commands.command(name="sync_commands", description="Manually sync bot commands with Discord")
+    @app_commands.default_permissions(administrator=True)
+    async def sync_commands(self, interaction: discord.Interaction):
+        """Manually sync slash commands with proper rate limit handling"""
+        await interaction.response.defer(ephemeral=True)
+        
+        try:
+            # Import the sync function from main.py
+            from main import sync_commands_with_retry
+            
+            embed = EmbedTemplates.warning_embed(
+                "🔄 Syncing Commands",
+                "Starting command sync with Discord API...\nThis may take a moment if rate limited."
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+            
+            # Perform sync
+            synced = await sync_commands_with_retry()
+            
+            if synced is not None:
+                embed = EmbedTemplates.success_embed(
+                    "✅ Commands Synced",
+                    f"Successfully synced **{len(synced)}** commands with Discord.\n"
+                    f"All slash commands should now be available."
+                )
+                logger.info(f"Admin {interaction.user.display_name} manually synced {len(synced)} commands")
+            else:
+                embed = EmbedTemplates.error_embed(
+                    "❌ Sync Failed",
+                    "Command sync failed after multiple retries.\n"
+                    "Discord may be heavily rate limiting. Try again later."
+                )
+                logger.warning(f"Manual command sync failed for admin {interaction.user.display_name}")
+            
+            await interaction.edit_original_response(embed=embed)
+            
+        except Exception as e:
+            logger.error(f"Error in sync_commands command: {e}")
+            embed = EmbedTemplates.error_embed(
+                "Sync Error",
+                f"An error occurred during command sync: {str(e)}"
+            )
+            await interaction.edit_original_response(embed=embed)
 
 async def setup(bot):
     await bot.add_cog(AdminCommands(bot))

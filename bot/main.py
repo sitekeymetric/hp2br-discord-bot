@@ -4,6 +4,7 @@ import asyncio
 import logging
 from utils.constants import Config
 from utils.version import print_startup_version, get_version_embed_field
+import aiohttp
 
 # Set up logging
 logging.basicConfig(
@@ -25,6 +26,62 @@ bot = commands.Bot(
     help_command=None  # Disable default help command
 )
 
+async def sync_commands_with_retry():
+    """
+    Sync slash commands with proper rate limit handling.
+    Respects Discord's Retry-After header and implements exponential backoff.
+    """
+    max_retries = Config.SYNC_RETRY_ATTEMPTS
+    base_delay = Config.SYNC_BASE_DELAY
+    
+    for attempt in range(max_retries + 1):
+        try:
+            logger.info(f'Attempting to sync commands (attempt {attempt + 1}/{max_retries + 1})')
+            synced = await bot.tree.sync()
+            logger.info(f'Successfully synced {len(synced)} command(s)')
+            return synced
+            
+        except discord.HTTPException as e:
+            if e.status == 429:  # Rate limited
+                # Extract retry_after from the exception
+                retry_after = getattr(e, 'retry_after', None)
+                if retry_after is None:
+                    # Fallback to exponential backoff if no retry_after
+                    retry_after = base_delay * (2 ** attempt)
+                
+                logger.warning(f'Rate limited (429). Retry-After: {retry_after}s. Waiting...')
+                
+                if attempt < max_retries:
+                    await asyncio.sleep(retry_after)
+                    continue
+                else:
+                    logger.error(f'Failed to sync commands after {max_retries + 1} attempts due to rate limiting')
+                    logger.error(f'Discord is heavily rate limiting command syncing. Please wait {retry_after}s before restarting.')
+                    return None
+            else:
+                logger.error(f'HTTP error during command sync: {e.status} {e.text}')
+                if attempt < max_retries:
+                    delay = base_delay * (2 ** attempt)
+                    logger.info(f'Retrying in {delay}s...')
+                    await asyncio.sleep(delay)
+                    continue
+                else:
+                    logger.error(f'Failed to sync commands after {max_retries + 1} attempts')
+                    return None
+                    
+        except Exception as e:
+            logger.error(f'Unexpected error during command sync: {e}')
+            if attempt < max_retries:
+                delay = base_delay * (2 ** attempt)
+                logger.info(f'Retrying in {delay}s...')
+                await asyncio.sleep(delay)
+                continue
+            else:
+                logger.error(f'Failed to sync commands after {max_retries + 1} attempts')
+                return None
+    
+    return None
+
 @bot.event
 async def on_ready():
     """Bot startup event"""
@@ -32,12 +89,13 @@ async def on_ready():
     logger.info(f'{bot.user} has connected to Discord!')
     logger.info(f'Bot is in {len(bot.guilds)} guilds')
     
-    # Sync slash commands
-    try:
-        synced = await bot.tree.sync()
-        logger.info(f'Synced {len(synced)} command(s)')
-    except Exception as e:
-        logger.error(f'Failed to sync commands: {e}')
+    # Sync slash commands with rate limit handling (if enabled)
+    if Config.SYNC_COMMANDS_ON_STARTUP:
+        synced = await sync_commands_with_retry()
+        if synced is None:
+            logger.warning('Command syncing failed, but bot will continue running with existing commands')
+    else:
+        logger.info('Command syncing disabled via SYNC_COMMANDS=false')
     
     # Set bot status
     await bot.change_presence(

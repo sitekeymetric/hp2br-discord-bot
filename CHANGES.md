@@ -3,6 +3,17 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v2.13.2-build.1 - 2025-08-08
+
+### Changes
+- Added proper Discord API rate limit handling for command syncing with Retry-After header support and configurable sync options
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-08T14:09:40.440692
+
+---
+
 ## v2.13.1-build.1 - 2025-08-07
 
 ### Changes

@@ -47,6 +47,11 @@ class Config:
     # Timeouts
     # TEAM_PROPOSAL_TIMEOUT removed - team proposal UI has no timeout
     MATCH_CLEANUP_DELAY = 30     # 30 seconds
+    
+    # Command Sync Settings
+    SYNC_COMMANDS_ON_STARTUP = os.environ.get("SYNC_COMMANDS", "true").lower() == "true"
+    SYNC_RETRY_ATTEMPTS = int(os.environ.get("SYNC_RETRY_ATTEMPTS", "3"))
+    SYNC_BASE_DELAY = float(os.environ.get("SYNC_BASE_DELAY", "1.0"))
 
 # Region codes for validation
 VALID_REGIONS = ["CA", "TX", "NY", "KR", "NA", "EU"]

@@ -3,7 +3,8 @@
     "allow": [
       "Bash(touch:*)",
       "Bash(mkdir:*)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(git push:*)"
     ],
     "deny": []
   }
