@@ -3,6 +3,17 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v2.13.3-build.1 - 2025-08-08
+
+### Changes
+- Enhanced Discord rate limit debugging with complete header inspection and configurable verbose logging
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-08T16:52:34.918472
+
+---
+
 ## v2.13.2-build.1 - 2025-08-08
 
 ### Changes

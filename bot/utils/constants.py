@@ -52,6 +52,7 @@ class Config:
     SYNC_COMMANDS_ON_STARTUP = os.environ.get("SYNC_COMMANDS", "true").lower() == "true"
     SYNC_RETRY_ATTEMPTS = int(os.environ.get("SYNC_RETRY_ATTEMPTS", "3"))
     SYNC_BASE_DELAY = float(os.environ.get("SYNC_BASE_DELAY", "1.0"))
+    SYNC_DEBUG_HEADERS = os.environ.get("SYNC_DEBUG_HEADERS", "true").lower() == "true"
 
 # Region codes for validation
 VALID_REGIONS = ["CA", "TX", "NY", "KR", "NA", "EU"]

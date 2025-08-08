@@ -43,6 +43,47 @@ async def sync_commands_with_retry():
             
         except discord.HTTPException as e:
             if e.status == 429:  # Rate limited
+                # Print complete response headers for debugging (if enabled)
+                if Config.SYNC_DEBUG_HEADERS:
+                    logger.warning("=== DISCORD RATE LIMIT RESPONSE (429) ===")
+                    logger.warning(f"Status Code: {e.status}")
+                    logger.warning(f"Response Text: {e.text}")
+                    
+                    # Print all available response headers
+                    if hasattr(e, 'response') and e.response:
+                        logger.warning("Response Headers:")
+                        if hasattr(e.response, 'headers'):
+                            for key, value in e.response.headers.items():
+                                logger.warning(f"  {key}: {value}")
+                        else:
+                            logger.warning("  No headers attribute found on response")
+                        
+                        # Also try to access the raw aiohttp response if available
+                        if hasattr(e.response, '_response'):
+                            logger.warning("Raw aiohttp Response Headers:")
+                            try:
+                                raw_response = e.response._response
+                                if hasattr(raw_response, 'headers'):
+                                    for key, value in raw_response.headers.items():
+                                        logger.warning(f"  {key}: {value}")
+                            except Exception as header_ex:
+                                logger.warning(f"  Could not access raw headers: {header_ex}")
+                    else:
+                        logger.warning("  No response object available")
+                    
+                    # Print all exception attributes
+                    logger.warning("Exception Attributes:")
+                    for attr in dir(e):
+                        if not attr.startswith('_'):
+                            try:
+                                value = getattr(e, attr)
+                                if not callable(value):
+                                    logger.warning(f"  {attr}: {value}")
+                            except:
+                                logger.warning(f"  {attr}: <could not access>")
+                    
+                    logger.warning("========================================")
+                
                 # Extract retry_after from the exception
                 retry_after = getattr(e, 'retry_after', None)
                 if retry_after is None:

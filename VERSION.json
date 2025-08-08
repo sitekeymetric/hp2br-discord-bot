@@ -1,8 +1,8 @@
 {
   "major": 2,
   "minor": 13,
-  "patch": 2,
+  "patch": 3,
   "build": 1,
-  "last_updated": "2025-08-08T14:09:40.440692",
-  "description": "Added proper Discord API rate limit handling for command syncing with Retry-After header support and configurable sync options"
+  "last_updated": "2025-08-08T16:52:34.918472",
+  "description": "Enhanced Discord rate limit debugging with complete header inspection and configurable verbose logging"
 }
