@@ -3,6 +3,17 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v3.0.0-build.1 - 2025-08-08
+
+### Changes
+- Implemented Advanced Skill-Based Rating System v3.0.0 with opponent strength consideration, curved scaling, and enhanced penalty tiers
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-08T17:45:50.004905
+
+---
+
 ## v2.13.3-build.1 - 2025-08-08
 
 ### Changes

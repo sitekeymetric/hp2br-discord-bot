@@ -347,7 +347,8 @@ async def load_extensions():
     extensions = [
         'commands.user_commands',
         'commands.team_commands', 
-        'commands.admin_commands'
+        'commands.admin_commands',
+        'commands.advanced_rating_commands'  # Advanced Rating System v3.0
     ]
     
     for extension in extensions:
