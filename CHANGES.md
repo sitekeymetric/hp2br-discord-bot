@@ -3,6 +3,44 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v2.14.0-build.1 - 2025-08-09
+
+### Major Feature: New Partners (NP) Mode
+
+#### Core Changes
+- **Replaced `num_teams` parameter with `np` mode**: `/create_teams` now uses `np: Optional[bool] = False` instead of manual team count selection
+- **Automatic team count determination**: Bot now intelligently calculates optimal team count based on player count (6-8 players = 2 teams, 9-12 = 3 teams, etc.)
+- **New Partners algorithm**: When `np=true`, creates teams by minimizing repeated partnerships using partnership history from completed matches
+
+#### NP Mode Algorithm Features
+- **Partnership matrix building**: Analyzes historical teammate data to identify frequent partnerships
+- **Dual strategy approach**: Uses both snake draft randomization and greedy partner avoidance algorithms
+- **Regional exemptions**: When region is specified, players from that region are exempt from partnership penalties against each other
+- **Penalty scoring**: Applies exponential penalty scaling (games_together^1.5) to discourage repeated partnerships
+- **Comprehensive logging**: Detailed partnership analysis and penalty scoring for transparency
+
+#### Technical Implementation
+- Enhanced `TeamBalancer.create_balanced_teams()` with `np_mode` parameter
+- Added `_create_teams_with_new_partners()` - main NP mode orchestrator  
+- Added `_build_partnership_matrix()` - builds partnership history from API data
+- Added `_calculate_partnership_penalty()` - calculates penalty scores with regional exemptions
+- Added `_greedy_partner_avoidance()` - greedy algorithm for optimal team assignment
+- Added `_ensure_regional_distribution()` - ensures regional requirements are met
+- Added `_log_partnership_analysis()` - detailed logging of partnership decisions
+
+#### User Experience
+- **Seamless integration**: NP mode works with existing region requirements and custom formats
+- **Smart messaging**: Shows "New Partners Mode: Minimizing repeated partnerships" when enabled
+- **Backward compatibility**: All existing functionality (region requirements, custom formats) works identically
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-09T00:00:00.000000
+- Breaking Change: `num_teams` parameter removed from `/create_teams`
+- New Feature: `np` parameter enables partnership optimization
+- Regional Integration: NP mode respects regional distribution requirements
+
+---
 ## v2.13.6-build.1 - 2025-08-08
 
 ### Changes

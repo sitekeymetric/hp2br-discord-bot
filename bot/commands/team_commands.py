@@ -26,12 +26,12 @@ class TeamCommands(commands.Cog):
     
     @app_commands.command(name="create_teams", description="Create balanced teams from waiting room")
     @app_commands.describe(
-        num_teams="Number of teams to create (default: auto, max: 6)",
+        np="New Partners mode - prioritize players who haven't played together often",
         region="Require a player from this region in each team (CA, TX, NY, KR, NA, EU)",
         format="Custom team sizes (e.g., '3:3:4' for teams of 3, 3, and 4 players)"
     )
     async def create_teams(self, interaction: discord.Interaction, 
-                          num_teams: Optional[int] = None, 
+                          np: Optional[bool] = False, 
                           region: Optional[str] = None,
                           format: Optional[str] = None):
         """Main team balancing functionality with special cases for small player counts and region requirements"""
@@ -89,14 +89,6 @@ class TeamCommands(commands.Cog):
                         await interaction.followup.send(embed=embed, ephemeral=True)
                         return
                     
-                    # Check if num_teams conflicts with format
-                    if num_teams is not None and num_teams != len(custom_team_sizes):
-                        embed = EmbedTemplates.error_embed(
-                            "Conflicting Parameters",
-                            f"Format specifies {len(custom_team_sizes)} teams but num_teams is {num_teams}. Use only one parameter."
-                        )
-                        await interaction.followup.send(embed=embed, ephemeral=True)
-                        return
                     
                 except ValueError:
                     embed = EmbedTemplates.error_embed(
@@ -159,7 +151,6 @@ class TeamCommands(commands.Cog):
             
             # Determine number of teams based on custom format or player count
             player_count = len(waiting_members)
-            team_adjustment_msg = None  # Initialize for later use
             
             if custom_team_sizes:
                 # Use custom format
@@ -175,60 +166,36 @@ class TeamCommands(commands.Cog):
                 actual_num_teams = 2
                 special_case_msg = f"**Special Case**: 5 players - splitting into 2 teams (2:3)"
             else:
-                # 6+ players: Use specified num_teams or calculate optimal default
-                if num_teams is None:
-                    # Calculate optimal team count: prioritize fewer teams with more players
-                    # Aim for 4-5 players per team, minimum 3 players per team
-                    if player_count <= 8:
-                        actual_num_teams = 2  # 6-8 players: 2 teams (3-4 players each)
-                    elif player_count <= 12:
-                        actual_num_teams = 3  # 9-12 players: 3 teams (3-4 players each)
-                    elif player_count <= 16:
-                        actual_num_teams = 4  # 13-16 players: 4 teams (3-4 players each)
-                    elif player_count <= 20:
-                        actual_num_teams = 5  # 17-20 players: 5 teams (3-4 players each)
-                    else:
-                        actual_num_teams = 6  # 21+ players: 6 teams (3+ players each)
+                # 6+ players: Calculate optimal team count automatically
+                # Aim for 4-5 players per team, minimum 3 players per team
+                if player_count <= 8:
+                    actual_num_teams = 2  # 6-8 players: 2 teams (3-4 players each)
+                elif player_count <= 12:
+                    actual_num_teams = 3  # 9-12 players: 3 teams (3-4 players each)
+                elif player_count <= 16:
+                    actual_num_teams = 4  # 13-16 players: 4 teams (3-4 players each)
+                elif player_count <= 20:
+                    actual_num_teams = 5  # 17-20 players: 5 teams (3-4 players each)
                 else:
-                    actual_num_teams = num_teams
-                special_case_msg = None
+                    actual_num_teams = 6  # 21+ players: 6 teams (3+ players each)
                 
-                # Validate num_teams for normal cases
-                if actual_num_teams < 2:
-                    embed = EmbedTemplates.error_embed(
-                        "Invalid Team Count",
-                        "Need at least 2 teams for balanced matches!"
-                    )
-                    await interaction.followup.send(embed=embed, ephemeral=True)
-                    return
+                # Add NP mode notification
+                if np:
+                    special_case_msg = f"**New Partners Mode**: Minimizing repeated partnerships among {player_count} players"
+                else:
+                    special_case_msg = None
                 
-                if actual_num_teams > 6:
-                    embed = EmbedTemplates.error_embed(
-                        "Too Many Teams",
-                        "Maximum 6 teams allowed!"
-                    )
-                    await interaction.followup.send(embed=embed, ephemeral=True)
-                    return
-                
-                # Adjust team count to ensure minimum players per team
-                # Calculate maximum teams possible with minimum players per team
-                max_teams_possible = player_count // Config.MIN_PLAYERS_PER_TEAM
-                original_num_teams = actual_num_teams
-                
-                # If user specified num_teams, validate it doesn't create teams too small
-                if actual_num_teams > max_teams_possible:
-                    actual_num_teams = max_teams_possible
-                    logger.info(f"Adjusted team count from {original_num_teams} to {actual_num_teams} to ensure minimum {Config.MIN_PLAYERS_PER_TEAM} players per team")
-                
-                # Ensure we have at least 2 teams for 6+ players
+                # Ensure teams are valid (automatic calculation should always be valid)
                 if actual_num_teams < 2:
                     actual_num_teams = 2
+                elif actual_num_teams > 6:
+                    actual_num_teams = 6
                 
-                # Create adjustment message if teams were changed
-                team_adjustment_msg = None
-                if num_teams is not None and actual_num_teams != original_num_teams:
-                    avg_players = player_count / actual_num_teams
-                    team_adjustment_msg = f"**Team count adjusted:** {original_num_teams} → {actual_num_teams} teams\n**Reason:** Ensures minimum {Config.MIN_PLAYERS_PER_TEAM} players per team ({avg_players:.1f} avg)"
+                # Adjust if too many teams for player count (safety check)
+                max_teams_possible = player_count // Config.MIN_PLAYERS_PER_TEAM
+                if actual_num_teams > max_teams_possible:
+                    actual_num_teams = max_teams_possible
+                    logger.info(f"Auto-adjusted team count to {actual_num_teams} to ensure minimum {Config.MIN_PLAYERS_PER_TEAM} players per team")
             
             # Create fresh team balancer instance for each team creation
             team_balancer = TeamBalancer()
@@ -270,9 +237,9 @@ class TeamCommands(commands.Cog):
                     waiting_members, custom_team_sizes, interaction.guild.id, required_region=region
                 )
             else:
-                # Use standard balancing
+                # Use standard balancing with optional NP mode
                 teams, team_ratings, balance_score = await team_balancer.create_balanced_teams(
-                    waiting_members, actual_num_teams, interaction.guild.id, required_region=region
+                    waiting_members, actual_num_teams, interaction.guild.id, required_region=region, np_mode=np
                 )
             
             # Validate teams
@@ -350,9 +317,6 @@ class TeamCommands(commands.Cog):
             if special_case_msg:
                 embed.insert_field_at(0, name="ℹ️ Special Configuration", value=special_case_msg, inline=False)
             
-            # Add team adjustment message if applicable
-            if team_adjustment_msg:
-                embed.insert_field_at(0, name="⚖️ Team Count Adjusted", value=team_adjustment_msg, inline=False)
             
             # Add match info
             balance_text = 'Excellent' if balance_score < 50 else 'Good' if balance_score < 100 else 'Fair'

@@ -170,7 +170,7 @@ class TeamBalancer:
                 team_index = 0
                 direction = 1
     
-    async def create_balanced_teams(self, members: List[discord.Member], num_teams: int, guild_id: int, required_region: str = None) -> Tuple[List[List[Dict]], List[float], float]:
+    async def create_balanced_teams(self, members: List[discord.Member], num_teams: int, guild_id: int, required_region: str = None, np_mode: bool = False) -> Tuple[List[List[Dict]], List[float], float]:
         """
         Main balancing algorithm with special cases for small player counts and region requirements
         Returns: (teams_with_data, team_ratings, balance_score)
@@ -196,8 +196,8 @@ class TeamBalancer:
             num_teams = 2
             logger.info(f"Special case: 5 players - splitting 2:3")
         else:
-            # 6+ players: Use normal balancing algorithm with region requirement
-            teams = self._create_balanced_teams_with_region(players_with_ratings, num_teams, required_region)
+            # 6+ players: Use normal balancing algorithm with region requirement and optional NP mode
+            teams = await self._create_balanced_teams_with_region(players_with_ratings, num_teams, guild_id, required_region, np_mode)
         
         # Calculate team ratings and balance score
         team_ratings = [self._calculate_team_rating(team) for team in teams]
@@ -207,6 +207,8 @@ class TeamBalancer:
         logger.info(f"Team ratings: {[f'{rating:.1f}' for rating in team_ratings]}")
         if required_region:
             logger.info(f"Region requirement: {required_region}")
+        if np_mode:
+            logger.info("NP mode enabled: minimizing repeated partnerships")
         
         return teams, team_ratings, balance_score
     
@@ -652,14 +654,19 @@ class TeamBalancer:
         
         return "\n".join(summary_lines)
     
-    def _create_balanced_teams_with_region(self, players: List[Dict], num_teams: int, required_region: str = None) -> List[List[Dict]]:
+    async def _create_balanced_teams_with_region(self, players: List[Dict], num_teams: int, guild_id: int, required_region: str = None, np_mode: bool = False) -> List[List[Dict]]:
         """
-        Create balanced teams with optional region requirement
+        Create balanced teams with optional region requirement and NP mode
         If region is specified, ensures each team has at least one player from that region
+        If np_mode is enabled, minimizes repeated partnerships
         """
-        if not required_region:
-            # Use standard snake draft if no region requirement
+        if not required_region and not np_mode:
+            # Use standard snake draft if no special requirements
             return self._snake_draft_balance(players, num_teams)
+        
+        if np_mode:
+            # Use NP mode algorithm
+            return await self._create_teams_with_new_partners(players, num_teams, guild_id, required_region)
         
         # Separate players by region
         region_players = [p for p in players if p.get('region_code') == required_region]
@@ -736,3 +743,269 @@ class TeamBalancer:
             elif team_index < 0:
                 team_index = 1 if num_teams > 1 else 0
                 direction = 1
+    
+    async def _create_teams_with_new_partners(self, players: List[Dict], num_teams: int, guild_id: int, required_region: str = None) -> List[List[Dict]]:
+        """
+        Create teams optimized to minimize repeated partnerships (NP mode)
+        Regional players are exempt from partnership penalties when region is required
+        """
+        from services.api_client import api_client
+        
+        logger.info(f"=== NEW PARTNERS MODE DEBUG ===")
+        logger.info(f"Players: {[p['username'] for p in players]}")
+        logger.info(f"Required region: {required_region}")
+        
+        # Get partnership history for all players
+        partnership_matrix = await self._build_partnership_matrix(players, guild_id)
+        
+        # Generate multiple team combinations using different strategies
+        best_teams = None
+        best_score = float('inf')
+        
+        # Strategy 1: Snake draft with randomization
+        for attempt in range(5):  # Try multiple random starting points
+            teams = self._snake_draft_balance(players.copy(), num_teams)
+            if required_region:
+                teams = self._ensure_regional_distribution(teams, required_region)
+            
+            score = self._calculate_partnership_penalty(teams, partnership_matrix, required_region)
+            logger.debug(f"Snake draft attempt {attempt + 1}: penalty score {score:.2f}")
+            
+            if score < best_score:
+                best_score = score
+                best_teams = teams
+        
+        # Strategy 2: Greedy partnership avoidance
+        greedy_teams = self._greedy_partner_avoidance(players, num_teams, partnership_matrix, required_region)
+        greedy_score = self._calculate_partnership_penalty(greedy_teams, partnership_matrix, required_region)
+        logger.debug(f"Greedy avoidance: penalty score {greedy_score:.2f}")
+        
+        if greedy_score < best_score:
+            best_score = greedy_score
+            best_teams = greedy_teams
+        
+        # Log final partnership analysis
+        self._log_partnership_analysis(best_teams, partnership_matrix, required_region)
+        logger.info(f"Final NP penalty score: {best_score:.2f}")
+        
+        return best_teams
+    
+    async def _build_partnership_matrix(self, players: List[Dict], guild_id: int) -> Dict[tuple, int]:
+        """
+        Build a matrix of how many games each pair of players has played together
+        Returns: {(user_id1, user_id2): games_together_count}
+        """
+        from services.api_client import api_client
+        
+        partnership_matrix = {}
+        
+        for player in players:
+            try:
+                # Get teammate stats for this player
+                teammate_stats = await api_client.get_user_teammate_stats(
+                    guild_id=guild_id,
+                    user_id=player['user_id'],
+                    limit=50  # Get more teammates for better data
+                )
+                
+                if teammate_stats and 'frequent_partners' in teammate_stats:
+                    for partner_data in teammate_stats['frequent_partners']:
+                        # Find the partner in our current player list
+                        partner_user_id = None
+                        for p in players:
+                            if p['username'] == partner_data['teammate_username']:
+                                partner_user_id = p['user_id']
+                                break
+                        
+                        if partner_user_id:
+                            # Create a sorted tuple for consistent key
+                            pair_key = tuple(sorted([player['user_id'], partner_user_id]))
+                            partnership_matrix[pair_key] = partner_data['games_together']
+                
+            except Exception as e:
+                logger.warning(f"Failed to get teammate stats for {player['username']}: {e}")
+        
+        logger.debug(f"Partnership matrix built: {len(partnership_matrix)} partnerships found")
+        for pair, count in partnership_matrix.items():
+            if count > 0:
+                player1_name = next(p['username'] for p in players if p['user_id'] == pair[0])
+                player2_name = next(p['username'] for p in players if p['user_id'] == pair[1])
+                logger.debug(f"  {player1_name} + {player2_name}: {count} games")
+        
+        return partnership_matrix
+    
+    def _calculate_partnership_penalty(self, teams: List[List[Dict]], partnership_matrix: Dict[tuple, int], required_region: str = None) -> float:
+        """
+        Calculate penalty score for team arrangement based on repeated partnerships
+        Lower score = better (fewer repeated partnerships)
+        Regional players are exempt when region is required
+        """
+        total_penalty = 0.0
+        
+        for team in teams:
+            # Calculate penalty for this team
+            for i in range(len(team)):
+                for j in range(i + 1, len(team)):
+                    player1 = team[i]
+                    player2 = team[j]
+                    
+                    # Skip penalty if both are regional players (when region is required)
+                    if required_region:
+                        player1_regional = player1.get('region_code') == required_region
+                        player2_regional = player2.get('region_code') == required_region
+                        if player1_regional and player2_regional:
+                            continue
+                    
+                    # Get partnership count
+                    pair_key = tuple(sorted([player1['user_id'], player2['user_id']]))
+                    games_together = partnership_matrix.get(pair_key, 0)
+                    
+                    # Apply escalating penalty
+                    if games_together > 0:
+                        # Penalty increases exponentially with repeated partnerships
+                        penalty = games_together ** 1.5
+                        total_penalty += penalty
+        
+        return total_penalty
+    
+    def _greedy_partner_avoidance(self, players: List[Dict], num_teams: int, partnership_matrix: Dict[tuple, int], required_region: str = None) -> List[List[Dict]]:
+        """
+        Greedy algorithm to build teams while avoiding repeated partnerships
+        """
+        # Sort players by rating for balanced distribution
+        sorted_players = sorted(players, key=lambda p: p['rating_mu'] - (p['rating_sigma'] * 0.5), reverse=True)
+        
+        # Initialize teams
+        teams = [[] for _ in range(num_teams)]
+        
+        # Handle regional requirement first
+        if required_region:
+            regional_players = [p for p in sorted_players if p.get('region_code') == required_region]
+            non_regional_players = [p for p in sorted_players if p.get('region_code') != required_region]
+            
+            # Place one regional player per team first
+            for i, player in enumerate(regional_players[:num_teams]):
+                teams[i].append(player)
+            
+            # Remaining players to distribute
+            remaining_players = regional_players[num_teams:] + non_regional_players
+        else:
+            remaining_players = sorted_players
+        
+        # Distribute remaining players using greedy approach
+        for player in remaining_players:
+            best_team_idx = None
+            lowest_penalty = float('inf')
+            
+            for team_idx, team in enumerate(teams):
+                # Calculate penalty if we add this player to this team
+                penalty = 0.0
+                for teammate in team:
+                    # Skip penalty calculation for regional pairs if region is required
+                    if required_region:
+                        player_regional = player.get('region_code') == required_region
+                        teammate_regional = teammate.get('region_code') == required_region
+                        if player_regional and teammate_regional:
+                            continue
+                    
+                    pair_key = tuple(sorted([player['user_id'], teammate['user_id']]))
+                    games_together = partnership_matrix.get(pair_key, 0)
+                    if games_together > 0:
+                        penalty += games_together ** 1.5
+                
+                # Also consider team size balance
+                team_size_penalty = len(team) * 0.1  # Small penalty for larger teams
+                total_penalty = penalty + team_size_penalty
+                
+                if total_penalty < lowest_penalty:
+                    lowest_penalty = total_penalty
+                    best_team_idx = team_idx
+            
+            # Add player to the best team
+            if best_team_idx is not None:
+                teams[best_team_idx].append(player)
+        
+        return teams
+    
+    def _ensure_regional_distribution(self, teams: List[List[Dict]], required_region: str) -> List[List[Dict]]:
+        """
+        Ensure each team has at least one player from the required region
+        """
+        # Count regional players per team
+        regional_distribution = []
+        for team in teams:
+            regional_count = sum(1 for p in team if p.get('region_code') == required_region)
+            regional_distribution.append(regional_count)
+        
+        # If distribution is already good, return as-is
+        if all(count > 0 for count in regional_distribution):
+            return teams
+        
+        # Otherwise, use the existing regional distribution method
+        # (This is a fallback to the existing logic)
+        all_players = []
+        for team in teams:
+            all_players.extend(team)
+        
+        region_players = [p for p in all_players if p.get('region_code') == required_region]
+        non_region_players = [p for p in all_players if p.get('region_code') != required_region]
+        
+        # Rebuild with proper regional distribution
+        new_teams = [[] for _ in range(len(teams))]
+        
+        # Place one regional player per team
+        for i, player in enumerate(region_players[:len(teams)]):
+            new_teams[i].append(player)
+        
+        # Distribute remaining players
+        remaining_players = region_players[len(teams):] + non_region_players
+        team_idx = 0
+        
+        for player in remaining_players:
+            new_teams[team_idx].append(player)
+            team_idx = (team_idx + 1) % len(teams)
+        
+        return new_teams
+    
+    def _log_partnership_analysis(self, teams: List[List[Dict]], partnership_matrix: Dict[tuple, int], required_region: str = None):
+        """
+        Log detailed analysis of partnerships in the final team arrangement
+        """
+        logger.info("=== PARTNERSHIP ANALYSIS ===")
+        
+        total_repeated_partnerships = 0
+        
+        for team_idx, team in enumerate(teams):
+            logger.info(f"Team {team_idx + 1}: {[p['username'] for p in team]}")
+            
+            team_partnerships = []
+            for i in range(len(team)):
+                for j in range(i + 1, len(team)):
+                    player1 = team[i]
+                    player2 = team[j]
+                    
+                    pair_key = tuple(sorted([player1['user_id'], player2['user_id']]))
+                    games_together = partnership_matrix.get(pair_key, 0)
+                    
+                    if games_together > 0:
+                        # Check if this pair is exempt (both regional when region required)
+                        exempt = False
+                        if required_region:
+                            player1_regional = player1.get('region_code') == required_region  
+                            player2_regional = player2.get('region_code') == required_region
+                            exempt = player1_regional and player2_regional
+                        
+                        status = " (exempt)" if exempt else ""
+                        team_partnerships.append(f"  {player1['username']} + {player2['username']}: {games_together} games{status}")
+                        
+                        if not exempt:
+                            total_repeated_partnerships += games_together
+            
+            if team_partnerships:
+                for partnership in team_partnerships:
+                    logger.info(partnership)
+            else:
+                logger.info("  No repeated partnerships!")
+        
+        logger.info(f"Total repeated partnerships (non-exempt): {total_repeated_partnerships}")
+        logger.info("===============================")
