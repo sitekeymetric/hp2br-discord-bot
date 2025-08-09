@@ -3,27 +3,28 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
-<<<<<<< Updated upstream
-## v3.0.1-build.1 - 2025-08-08
+## v2.13.6-build.1 - 2025-08-08
 
 ### Changes
-- Updated /rating_scale command to show Advanced Rating System v3.0.0 data with ephemeral response and version info
+- Fixed ImportError in advanced_rating_commands by correcting embed imports and disabling conflicting extension
 
 ### Technical Details
 - Build: 1
-- Updated: 2025-08-08T18:10:38.854152
+- Updated: 2025-08-08T23:05:36.636730
 
 ---
 
-## v3.0.0-build.1 - 2025-08-08
+## v2.13.5-build.1 - 2025-08-08
 
 ### Changes
-- Implemented Advanced Skill-Based Rating System v3.0.0 with opponent strength consideration, curved scaling, and enhanced penalty tiers
+- Fixed JSON parsing error in VERSION.json caused by Git merge conflict markers
 
 ### Technical Details
 - Build: 1
-- Updated: 2025-08-08T17:45:50.004905
-=======
+- Updated: 2025-08-08T23:02:53.809922
+
+---
+
 ## v2.13.4-build.1 - 2025-08-08
 
 ### Changes
@@ -32,7 +33,6 @@ This file tracks all changes and version updates for the HP2BR Discord Bot syste
 ### Technical Details
 - Build: 1
 - Updated: 2025-08-08T22:44:29.544673
->>>>>>> Stashed changes
 
 ---
 

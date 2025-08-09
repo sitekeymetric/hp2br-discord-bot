@@ -13,7 +13,6 @@ from utils.embeds import EmbedTemplates
 from utils.views import TeamProposalView
 from utils.constants import Config
 from utils.version import get_bot_footer_text
-from utils.advanced_rating_ui import AdvancedRatingEmbeds
 
 logger = logging.getLogger(__name__)
 

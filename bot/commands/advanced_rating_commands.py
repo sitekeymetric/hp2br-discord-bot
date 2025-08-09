@@ -11,7 +11,7 @@ import logging
 from services.api_client import api_client
 from services.voice_manager import VoiceManager
 from utils.advanced_rating_ui import AdvancedRatingEmbeds, AdvancedRatingView
-from utils.embeds import create_error_embed
+from utils.embeds import EmbedTemplates
 from utils.version import get_version_string
 
 logger = logging.getLogger(__name__)
@@ -47,7 +47,7 @@ class AdvancedRatingCommands(commands.Cog):
                 # Try to auto-register
                 user_data = await api_client.auto_register_user(guild_id, target_user.id, target_user.display_name)
                 if not user_data:
-                    embed = create_error_embed("User not found", "Please register first using `/register`")
+                    embed = EmbedTemplates.error_embed("User not found", "Please register first using `/register`")
                     await ctx.followup.send(embed=embed, ephemeral=True)
                     return
             
@@ -57,7 +57,7 @@ class AdvancedRatingCommands(commands.Cog):
             waiting_room_members = await self.voice_manager.get_waiting_room_members(ctx.guild)
             
             if len(waiting_room_members) < 3:
-                embed = create_error_embed(
+                embed = EmbedTemplates.error_embed(
                     "Not Enough Players", 
                     "Need at least 3 players in Waiting Room to preview ratings.\n"
                     "Join the Waiting Room voice channel to see your rating preview!"
@@ -96,7 +96,7 @@ class AdvancedRatingCommands(commands.Cog):
                     break
             
             if user_team_index is None:
-                embed = create_error_embed(
+                embed = EmbedTemplates.error_embed(
                     "User Not in Waiting Room",
                     f"{target_user.display_name} is not in the Waiting Room voice channel."
                 )
@@ -126,7 +126,7 @@ class AdvancedRatingCommands(commands.Cog):
             )
             
             if not preview_data:
-                embed = create_error_embed("Preview Failed", "Could not generate rating preview")
+                embed = EmbedTemplates.error_embed("Preview Failed", "Could not generate rating preview")
                 await ctx.followup.send(embed=embed, ephemeral=True)
                 return
             
@@ -164,7 +164,7 @@ class AdvancedRatingCommands(commands.Cog):
             
         except Exception as e:
             logger.error(f"Error in rating_preview command: {str(e)}")
-            embed = create_error_embed("Preview Error", f"Failed to generate rating preview: {str(e)}")
+            embed = EmbedTemplates.error_embed("Preview Error", f"Failed to generate rating preview: {str(e)}")
             await ctx.followup.send(embed=embed, ephemeral=True)
     
     @discord.slash_command(
@@ -188,7 +188,7 @@ class AdvancedRatingCommands(commands.Cog):
             
         except Exception as e:
             logger.error(f"Error in advanced_rating_scale command: {str(e)}")
-            embed = create_error_embed("Rating Scale Error", f"Failed to get rating scale: {str(e)}")
+            embed = EmbedTemplates.error_embed("Rating Scale Error", f"Failed to get rating scale: {str(e)}")
             await ctx.respond(embed=embed, ephemeral=True)
     
     @discord.slash_command(
@@ -204,7 +204,7 @@ class AdvancedRatingCommands(commands.Cog):
         try:
             # Check if there's an active match
             # This would need to be implemented with match tracking
-            embed = create_error_embed(
+            embed = EmbedTemplates.error_embed(
                 "Feature Coming Soon",
                 "Advanced result recording will be integrated with the existing `/record_result` command.\n\n"
                 "The system will automatically use Advanced Rating System v3.0 for all new matches."
@@ -213,7 +213,7 @@ class AdvancedRatingCommands(commands.Cog):
             
         except Exception as e:
             logger.error(f"Error in record_advanced_result command: {str(e)}")
-            embed = create_error_embed("Recording Error", f"Failed to record result: {str(e)}")
+            embed = EmbedTemplates.error_embed("Recording Error", f"Failed to record result: {str(e)}")
             await ctx.followup.send(embed=embed, ephemeral=True)
 
 
