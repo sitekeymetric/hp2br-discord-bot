@@ -3,6 +3,17 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v3.0.1-build.1 - 2025-08-08
+
+### Changes
+- Updated /rating_scale command to show Advanced Rating System v3.0.0 data with ephemeral response and version info
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-08T18:10:38.854152
+
+---
+
 ## v3.0.0-build.1 - 2025-08-08
 
 ### Changes

@@ -1,8 +1,8 @@
 {
   "major": 3,
   "minor": 0,
-  "patch": 0,
+  "patch": 1,
   "build": 1,
-  "last_updated": "2025-08-08T17:45:50.004905",
-  "description": "Implemented Advanced Skill-Based Rating System v3.0.0 with opponent strength consideration, curved scaling, and enhanced penalty tiers"
+  "last_updated": "2025-08-08T18:10:38.854152",
+  "description": "Updated /rating_scale command to show Advanced Rating System v3.0.0 data with ephemeral response and version info"
 }
