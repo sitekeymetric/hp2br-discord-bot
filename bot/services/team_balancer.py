@@ -1,6 +1,7 @@
 import discord
 import random
 import logging
+import time
 from typing import List, Dict, Tuple, Any
 from services.api_client import api_client
 from utils.constants import Config
@@ -11,7 +12,9 @@ class TeamBalancer:
     """Team balancing algorithm with snake draft"""
     
     def __init__(self):
-        pass
+        # Seed random number generator with current time to ensure different results
+        random.seed(int(time.time() * 1000000) % 2147483647)
+        logger.debug(f"TeamBalancer initialized with random seed based on time")
     
     async def create_teams_with_custom_sizes(self, members: List[discord.Member], team_sizes: List[int], guild_id: int, required_region: str = None) -> Tuple[List[List[Dict]], List[float], float]:
         """
@@ -330,8 +333,13 @@ class TeamBalancer:
         Group players by rating bands and shuffle within each band
         Preserves overall skill distribution while adding variety
         """
-        if len(players) < Config.MIN_RANDOMIZATION_PLAYERS:
+        if len(players) < 2:  # Lowered from Config.MIN_RANDOMIZATION_PLAYERS
+            logger.debug(f"Skipping rating band shuffle - only {len(players)} players")
             return players  # Not enough players to benefit from randomization
+        
+        # Log player ratings for debugging
+        player_ratings = [f"{p['username']}({p['rating_mu']:.0f})" for p in players]
+        logger.debug(f"Players before band shuffle: {player_ratings}")
         
         # Group players into rating bands
         rating_bands = {}
@@ -345,14 +353,27 @@ class TeamBalancer:
                 rating_bands[band] = []
             rating_bands[band].append(player)
         
+        logger.debug(f"Rating bands: {list(rating_bands.keys())}")
+        for band, band_players in rating_bands.items():
+            ratings_in_band = [f"{p['username']}({p['rating_mu']:.0f})" for p in band_players]
+            logger.debug(f"Band {band}: {ratings_in_band}")
+        
         # Shuffle within each band (only if band has multiple players)
         shuffled_players = []
         for band in sorted(rating_bands.keys(), reverse=True):  # Process high to low rating bands
             band_players = rating_bands[band]
             if len(band_players) >= 2:  # Only shuffle if 2+ players in band
+                before_shuffle = [p['username'] for p in band_players]
                 random.shuffle(band_players)
-                logger.debug(f"Shuffled {len(band_players)} players in rating band {band}-{band + Config.RATING_BAND_SIZE - 1}")
+                after_shuffle = [p['username'] for p in band_players]
+                logger.info(f"Shuffled band {band}: {before_shuffle} → {after_shuffle}")
+            else:
+                logger.debug(f"Skipping shuffle for band {band} - only {len(band_players)} player(s)")
             shuffled_players.extend(band_players)
+        
+        # Log final order after band shuffling
+        final_ratings = [f"{p['username']}({p['rating_mu']:.0f})" for p in shuffled_players]
+        logger.debug(f"Players after band shuffle: {final_ratings}")
         
         return shuffled_players
     
@@ -365,7 +386,12 @@ class TeamBalancer:
             threshold = Config.SIMILAR_RATING_THRESHOLD
         
         if len(players) < 2:
+            logger.debug(f"Skipping similar ratings shuffle - only {len(players)} players")
             return players
+        
+        # Log before similar ratings shuffle
+        before_similar = [f"{p['username']}({p['rating_mu']:.0f})" for p in players]
+        logger.debug(f"Players before similar ratings shuffle (threshold={threshold}): {before_similar}")
         
         randomized_players = []
         i = 0
@@ -383,11 +409,19 @@ class TeamBalancer:
             
             # Shuffle the group if it has multiple players
             if len(similar_group) > 1:
+                before_group = [p['username'] for p in similar_group]
                 random.shuffle(similar_group)
-                logger.debug(f"Shuffled {len(similar_group)} players with similar ratings around {current_rating:.0f}")
+                after_group = [p['username'] for p in similar_group]
+                logger.info(f"Shuffled similar ratings around {current_rating:.0f}: {before_group} → {after_group}")
+            else:
+                logger.debug(f"Skipping shuffle for {similar_group[0]['username']} - no similar ratings")
             
             randomized_players.extend(similar_group)
             i = j
+        
+        # Log final order after similar ratings shuffle
+        after_similar = [f"{p['username']}({p['rating_mu']:.0f})" for p in randomized_players]
+        logger.debug(f"Players after similar ratings shuffle: {after_similar}")
         
         return randomized_players
     
@@ -396,7 +430,9 @@ class TeamBalancer:
         Randomly select which team gets the first player in snake draft
         Prevents Team 1 from always getting the best player
         """
-        return random.randint(0, num_teams - 1)
+        starting_team = random.randint(0, num_teams - 1)
+        logger.info(f"Random starting team selected: Team {starting_team + 1} (out of {num_teams} teams)")
+        return starting_team
     
     def _snake_draft_balance(self, players: List[Dict], num_teams: int) -> List[List[Dict]]:
         """
@@ -406,6 +442,11 @@ class TeamBalancer:
         - Calculate optimal team sizes for even distribution
         - Distribute using snake pattern within size constraints
         """
+        # Log initial state
+        initial_order = [f"{p['username']}({p['rating_mu']:.0f})" for p in players]
+        logger.info(f"=== TEAM BALANCING DEBUG ===")
+        logger.info(f"Initial player order: {initial_order}")
+        
         # Sort players by effective rating (mu - sigma for conservative estimate)
         sorted_players = sorted(
             players,
@@ -413,9 +454,33 @@ class TeamBalancer:
             reverse=True
         )
         
+        after_sort = [f"{p['username']}({p['rating_mu']:.0f})" for p in sorted_players]
+        logger.info(f"After rating sort: {after_sort}")
+        
         # Apply controlled randomization for variety while maintaining balance
+        logger.info("Applying randomization...")
         sorted_players = self._shuffle_rating_bands(sorted_players)
         sorted_players = self._randomize_similar_ratings(sorted_players)
+        
+        final_draft_order = [f"{p['username']}({p['rating_mu']:.0f})" for p in sorted_players]
+        logger.info(f"Final draft order: {final_draft_order}")
+        
+        # Fallback randomization if no shuffling occurred
+        if final_draft_order == after_sort:
+            logger.warning("No randomization occurred! Applying fallback shuffle...")
+            # Create groups of 2-3 players and shuffle within each group
+            fallback_players = []
+            for i in range(0, len(sorted_players), 3):
+                group = sorted_players[i:i+3]
+                if len(group) > 1:
+                    group_names = [p['username'] for p in group]
+                    random.shuffle(group)
+                    logger.info(f"Fallback shuffle group: {group_names} → {[p['username'] for p in group]}")
+                fallback_players.extend(group)
+            sorted_players = fallback_players
+            
+            final_after_fallback = [f"{p['username']}({p['rating_mu']:.0f})" for p in sorted_players]
+            logger.info(f"Final order after fallback: {final_after_fallback}")
         
         # Calculate optimal team sizes for even distribution
         total_players = len(sorted_players)

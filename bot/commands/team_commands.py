@@ -23,7 +23,7 @@ class TeamCommands(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.voice_manager = VoiceManager(bot)
-        self.team_balancer = TeamBalancer()
+        # Don't create team balancer here - create fresh instance each time
     
     @app_commands.command(name="create_teams", description="Create balanced teams from waiting room")
     @app_commands.describe(
@@ -231,10 +231,13 @@ class TeamCommands(commands.Cog):
                     avg_players = player_count / actual_num_teams
                     team_adjustment_msg = f"**Team count adjusted:** {original_num_teams} → {actual_num_teams} teams\n**Reason:** Ensures minimum {Config.MIN_PLAYERS_PER_TEAM} players per team ({avg_players:.1f} avg)"
             
+            # Create fresh team balancer instance for each team creation
+            team_balancer = TeamBalancer()
+            
             # Check if region requirement can be met
             if region:
                 # Get user data to check regions
-                players_with_ratings = await self.team_balancer._get_player_ratings(
+                players_with_ratings = await team_balancer._get_player_ratings(
                     waiting_members, interaction.guild.id
                 )
                 
@@ -264,17 +267,17 @@ class TeamCommands(commands.Cog):
             # Create balanced teams
             if custom_team_sizes:
                 # Use custom format
-                teams, team_ratings, balance_score = await self.team_balancer.create_teams_with_custom_sizes(
+                teams, team_ratings, balance_score = await team_balancer.create_teams_with_custom_sizes(
                     waiting_members, custom_team_sizes, interaction.guild.id, required_region=region
                 )
             else:
                 # Use standard balancing
-                teams, team_ratings, balance_score = await self.team_balancer.create_balanced_teams(
+                teams, team_ratings, balance_score = await team_balancer.create_balanced_teams(
                     waiting_members, actual_num_teams, interaction.guild.id, required_region=region
                 )
             
             # Validate teams
-            if not self.team_balancer.validate_teams(teams, waiting_members):
+            if not team_balancer.validate_teams(teams, waiting_members):
                 embed = EmbedTemplates.error_embed(
                     "Team Creation Failed",
                     "Failed to create valid teams. Please try again."

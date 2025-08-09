@@ -1,8 +1,17 @@
 {
+<<<<<<< Updated upstream
   "major": 3,
   "minor": 0,
   "patch": 1,
   "build": 1,
   "last_updated": "2025-08-08T18:10:38.854152",
   "description": "Updated /rating_scale command to show Advanced Rating System v3.0.0 data with ephemeral response and version info"
+=======
+  "major": 2,
+  "minor": 13,
+  "patch": 4,
+  "build": 1,
+  "last_updated": "2025-08-08T22:44:29.544673",
+  "description": "Fixed team randomization by creating fresh TeamBalancer instances and adding comprehensive debug logging to identify randomization issues"
+>>>>>>> Stashed changes
 }

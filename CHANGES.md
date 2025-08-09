@@ -3,6 +3,7 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+<<<<<<< Updated upstream
 ## v3.0.1-build.1 - 2025-08-08
 
 ### Changes
@@ -22,6 +23,16 @@ This file tracks all changes and version updates for the HP2BR Discord Bot syste
 ### Technical Details
 - Build: 1
 - Updated: 2025-08-08T17:45:50.004905
+=======
+## v2.13.4-build.1 - 2025-08-08
+
+### Changes
+- Fixed team randomization by creating fresh TeamBalancer instances and adding comprehensive debug logging to identify randomization issues
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-08T22:44:29.544673
+>>>>>>> Stashed changes
 
 ---
 
