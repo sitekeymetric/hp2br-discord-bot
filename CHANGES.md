@@ -3,6 +3,43 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v2.14.2-build.1 - 2025-08-09
+
+### Changes
+- **Replaced snake draft with fully random assignment**: Snake draft was too structured and predictable
+- **New random balanced assignment algorithm**: Players are completely shuffled and randomly assigned to teams while maintaining size balance
+- **Enhanced NP mode randomization**: Increased attempts from 10 to 15 random assignments + 3 greedy attempts
+- **Removed rating-based sorting in greedy algorithm**: Now uses full randomization for maximum variety
+- **Added comprehensive logging**: Shows shuffled player order and team slot assignments for transparency
+
+### Algorithm Changes
+- `_random_balanced_assignment()`: New method that shuffles both players and team slots for true randomness
+- `_distribute_players_randomly()`: Replaces snake draft distribution with random team selection
+- `_greedy_partner_avoidance()`: Now fully randomizes player order instead of rating-based sorting
+- Regional distribution: Maintains one regional player per team but randomizes their assignment order
+
+### Technical Details
+- Build: 1  
+- Updated: 2025-08-09T00:10:00.000000
+- Breaking Change: Snake draft algorithm completely replaced
+- New Feature: True random team generation while maintaining balance
+
+---
+## v2.14.1-build.1 - 2025-08-09
+
+### Changes
+- Enhanced randomization in team generation to fix identical team issue
+- Improved random seed generation using time + process ID + object ID
+- Increased NP mode attempts from 5 to 10 snake draft tries + 3 greedy attempts
+- Added tie-breaking randomization when multiple teams have equal penalty scores
+- Added pre-shuffle randomization to NP mode algorithms
+- Enhanced logging to show random seed values for debugging
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-09T00:05:00.000000
+
+---
 ## v2.14.0-build.1 - 2025-08-09
 
 ### Major Feature: New Partners (NP) Mode

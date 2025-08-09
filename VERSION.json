@@ -1,8 +1,8 @@
 {
   "major": 2,
   "minor": 14,
-  "patch": 0,
+  "patch": 2,
   "build": 1,
-  "last_updated": "2025-08-09T00:00:00.000000",
-  "description": "Implemented New Partners (NP) mode replacing num_teams parameter - creates teams based on minimizing repeated partnerships with regional exemptions"
+  "last_updated": "2025-08-09T00:10:00.000000",
+  "description": "Replaced snake draft with fully random balanced assignment for maximum team variety and unpredictability"
 }

@@ -12,9 +12,11 @@ class TeamBalancer:
     """Team balancing algorithm with snake draft"""
     
     def __init__(self):
-        # Seed random number generator with current time to ensure different results
-        random.seed(int(time.time() * 1000000) % 2147483647)
-        logger.debug(f"TeamBalancer initialized with random seed based on time")
+        # Seed random number generator with current time + process info to ensure different results
+        import os
+        seed_value = int((time.time() * 1000000) + os.getpid() + id(self)) % 2147483647
+        random.seed(seed_value)
+        logger.info(f"TeamBalancer initialized with random seed: {seed_value}")
     
     async def create_teams_with_custom_sizes(self, members: List[discord.Member], team_sizes: List[int], guild_id: int, required_region: str = None) -> Tuple[List[List[Dict]], List[float], float]:
         """
@@ -661,8 +663,8 @@ class TeamBalancer:
         If np_mode is enabled, minimizes repeated partnerships
         """
         if not required_region and not np_mode:
-            # Use standard snake draft if no special requirements
-            return self._snake_draft_balance(players, num_teams)
+            # Use random balanced assignment if no special requirements
+            return self._random_balanced_assignment(players, num_teams)
         
         if np_mode:
             # Use NP mode algorithm
@@ -683,16 +685,117 @@ class TeamBalancer:
         for i in range(min(len(region_players), num_teams)):
             teams[i].append(region_players[i])
         
-        # Add remaining regional players using snake draft
+        # Add remaining regional players using random distribution
         remaining_region_players = region_players[num_teams:]
         if remaining_region_players:
-            self._distribute_players_snake_draft(remaining_region_players, teams)
+            self._distribute_players_randomly(remaining_region_players, teams)
         
-        # Distribute non-regional players using snake draft
+        # Distribute non-regional players using random distribution
         if non_region_players:
-            self._distribute_players_snake_draft(non_region_players, teams)
+            self._distribute_players_randomly(non_region_players, teams)
         
         return teams
+    
+    def _random_balanced_assignment(self, players: List[Dict], num_teams: int) -> List[List[Dict]]:
+        """
+        Randomly assign players to teams while maintaining balanced team sizes
+        Much more random than snake draft - players can end up on any team
+        """
+        logger.info(f"=== RANDOM BALANCED ASSIGNMENT ===")
+        logger.info(f"Assigning {len(players)} players to {num_teams} teams")
+        
+        # Calculate target team sizes for even distribution
+        total_players = len(players)
+        base_size = total_players // num_teams
+        extra_players = total_players % num_teams
+        
+        # Create target sizes: some teams get base_size+1, others get base_size
+        target_sizes = []
+        for i in range(num_teams):
+            if i < extra_players:
+                target_sizes.append(base_size + 1)
+            else:
+                target_sizes.append(base_size)
+        
+        logger.info(f"Target team sizes: {target_sizes}")
+        
+        # Initialize teams
+        teams = [[] for _ in range(num_teams)]
+        
+        # Randomly shuffle players for completely random assignment
+        shuffled_players = players.copy()
+        random.shuffle(shuffled_players)
+        
+        player_ratings = [f"{p['username']}({p['rating_mu']:.0f})" for p in shuffled_players]
+        logger.info(f"Shuffled player order: {player_ratings}")
+        
+        # Create a list of team slots (e.g., [0,0,0,1,1,1,2,2] for 3 teams with 3,3,2 players)
+        team_slots = []
+        for team_idx, size in enumerate(target_sizes):
+            team_slots.extend([team_idx] * size)
+        
+        # Shuffle the team slots for random assignment
+        random.shuffle(team_slots)
+        logger.info(f"Random team slot assignment: {team_slots}")
+        
+        # Assign players to teams based on shuffled slots
+        for i, player in enumerate(shuffled_players):
+            team_idx = team_slots[i]
+            teams[team_idx].append(player)
+            logger.debug(f"{player['username']} → Team {team_idx + 1}")
+        
+        # Log final team composition with balance
+        for i, team in enumerate(teams):
+            team_names = [p['username'] for p in team]
+            team_ratings = [p['rating_mu'] for p in team]
+            avg_rating = sum(team_ratings) / len(team_ratings) if team_ratings else 0
+            logger.info(f"Team {i+1} ({len(team)} players): {team_names} (avg: {avg_rating:.1f})")
+        
+        return teams
+    
+    def _distribute_players_randomly(self, players: List[Dict], teams: List[List[Dict]]):
+        """
+        Randomly distribute players to existing teams while maintaining size balance
+        """
+        if not players:
+            return
+        
+        num_teams = len(teams)
+        
+        # Create list of available team indices, weighted by how many spots each team has
+        team_weights = []
+        for team_idx, team in enumerate(teams):
+            # Calculate how much space this team has relative to others
+            current_sizes = [len(t) for t in teams]
+            min_size = min(current_sizes)
+            max_size = max(current_sizes)
+            
+            # Teams with fewer players get more weight
+            weight = max_size - len(team) + 1
+            team_weights.extend([team_idx] * weight)
+        
+        # Shuffle players for randomness
+        shuffled_players = players.copy()
+        random.shuffle(shuffled_players)
+        
+        # Assign each player to a random available team
+        for player in shuffled_players:
+            # Refresh weights based on current team sizes
+            current_sizes = [len(team) for team in teams]
+            min_size = min(current_sizes)
+            
+            # Only consider teams that aren't overfilled
+            available_teams = []
+            for team_idx, team in enumerate(teams):
+                if len(team) <= min_size:  # Only teams at minimum size
+                    available_teams.append(team_idx)
+            
+            if not available_teams:
+                available_teams = list(range(num_teams))  # Fallback to all teams
+            
+            # Randomly pick from available teams
+            chosen_team = random.choice(available_teams)
+            teams[chosen_team].append(player)
     
     def _distribute_players_snake_draft(self, players: List[Dict], teams: List[List[Dict]]):
         """
@@ -762,27 +865,43 @@ class TeamBalancer:
         best_teams = None
         best_score = float('inf')
         
-        # Strategy 1: Snake draft with randomization
-        for attempt in range(5):  # Try multiple random starting points
-            teams = self._snake_draft_balance(players.copy(), num_teams)
+        # Strategy 1: Random balanced assignment (try multiple times for variety)
+        for attempt in range(15):  # Try more random combinations
+            # Create a copy and apply full randomization
+            players_copy = players.copy()
+            random.shuffle(players_copy)  # Full shuffle for maximum randomness
+            
+            teams = self._random_balanced_assignment(players_copy, num_teams)
             if required_region:
                 teams = self._ensure_regional_distribution(teams, required_region)
             
             score = self._calculate_partnership_penalty(teams, partnership_matrix, required_region)
-            logger.debug(f"Snake draft attempt {attempt + 1}: penalty score {score:.2f}")
+            logger.debug(f"Random assignment attempt {attempt + 1}: penalty score {score:.2f}")
             
             if score < best_score:
                 best_score = score
                 best_teams = teams
         
-        # Strategy 2: Greedy partnership avoidance
-        greedy_teams = self._greedy_partner_avoidance(players, num_teams, partnership_matrix, required_region)
-        greedy_score = self._calculate_partnership_penalty(greedy_teams, partnership_matrix, required_region)
-        logger.debug(f"Greedy avoidance: penalty score {greedy_score:.2f}")
+        # Strategy 2: Greedy partnership avoidance (try multiple times with randomization)
+        for attempt in range(3):  # Try greedy with different randomization
+            greedy_teams = self._greedy_partner_avoidance(players.copy(), num_teams, partnership_matrix, required_region)
+            greedy_score = self._calculate_partnership_penalty(greedy_teams, partnership_matrix, required_region)
+            logger.debug(f"Greedy attempt {attempt + 1}: penalty score {greedy_score:.2f}")
+            
+            if greedy_score < best_score:
+                best_score = greedy_score
+                best_teams = greedy_teams
         
-        if greedy_score < best_score:
-            best_score = greedy_score
-            best_teams = greedy_teams
+        # If we have multiple equally good solutions, add tie-breaking randomization
+        if best_score == 0.0:  # Perfect score - choose randomly among random assignments
+            logger.info("Multiple perfect solutions found - using additional random selection")
+            # Re-run one more random assignment for final randomness
+            players_shuffled = players.copy()
+            random.shuffle(players_shuffled)
+            final_teams = self._random_balanced_assignment(players_shuffled, num_teams)
+            if required_region:
+                final_teams = self._ensure_regional_distribution(final_teams, required_region)
+            best_teams = final_teams
         
         # Log final partnership analysis
         self._log_partnership_analysis(best_teams, partnership_matrix, required_region)
@@ -872,16 +991,22 @@ class TeamBalancer:
         """
         Greedy algorithm to build teams while avoiding repeated partnerships
         """
-        # Sort players by rating for balanced distribution
-        sorted_players = sorted(players, key=lambda p: p['rating_mu'] - (p['rating_sigma'] * 0.5), reverse=True)
+        # Fully randomize players for maximum variety - no rating-based sorting
+        randomized_players = players.copy()
+        random.shuffle(randomized_players)
+        logger.debug(f"Greedy algorithm with fully randomized player order: {[p['username'] for p in randomized_players]}")
         
         # Initialize teams
         teams = [[] for _ in range(num_teams)]
         
         # Handle regional requirement first
         if required_region:
-            regional_players = [p for p in sorted_players if p.get('region_code') == required_region]
-            non_regional_players = [p for p in sorted_players if p.get('region_code') != required_region]
+            regional_players = [p for p in randomized_players if p.get('region_code') == required_region]
+            non_regional_players = [p for p in randomized_players if p.get('region_code') != required_region]
+            
+            # Shuffle regional players too for randomness
+            random.shuffle(regional_players)
+            random.shuffle(non_regional_players)
             
             # Place one regional player per team first
             for i, player in enumerate(regional_players[:num_teams]):
@@ -890,11 +1015,11 @@ class TeamBalancer:
             # Remaining players to distribute
             remaining_players = regional_players[num_teams:] + non_regional_players
         else:
-            remaining_players = sorted_players
+            remaining_players = randomized_players
         
         # Distribute remaining players using greedy approach
         for player in remaining_players:
-            best_team_idx = None
+            best_teams = []  # Track teams with equally low penalty
             lowest_penalty = float('inf')
             
             for team_idx, team in enumerate(teams):
@@ -919,7 +1044,18 @@ class TeamBalancer:
                 
                 if total_penalty < lowest_penalty:
                     lowest_penalty = total_penalty
-                    best_team_idx = team_idx
+                    best_teams = [team_idx]
+                elif abs(total_penalty - lowest_penalty) < 0.001:  # Equal penalty
+                    best_teams.append(team_idx)
+            
+            # If multiple teams have equal penalty, choose randomly for variety
+            if len(best_teams) > 1:
+                best_team_idx = random.choice(best_teams)
+                logger.debug(f"Multiple equal options for {player['username']}, randomly chose team {best_team_idx + 1}")
+            elif best_teams:
+                best_team_idx = best_teams[0]
+            else:
+                best_team_idx = None
             
             # Add player to the best team
             if best_team_idx is not None:
