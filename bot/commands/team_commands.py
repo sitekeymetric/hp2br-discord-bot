@@ -498,6 +498,55 @@ class TeamCommands(commands.Cog):
                 "An error occurred while cancelling the match. Please try again."
             )
             await interaction.followup.send(embed=embed, ephemeral=True)
+    
+    @app_commands.command(name="cleanup", description="Clean up team voice channels and return players to waiting room")
+    async def cleanup(self, interaction: discord.Interaction):
+        """Clean up team channels - available to all users"""
+        await interaction.response.defer()
+        
+        try:
+            # Find existing team channels
+            team_channels = []
+            for channel in interaction.guild.voice_channels:
+                if Config.TEAM_CHANNEL_PREFIX.lower() in channel.name.lower():
+                    team_channels.append(channel)
+            
+            if not team_channels:
+                embed = EmbedTemplates.success_embed(
+                    "No Cleanup Needed",
+                    "No team channels found to clean up."
+                )
+                await interaction.followup.send(embed=embed)
+                return
+            
+            # Count players in team channels
+            players_in_teams = 0
+            for channel in team_channels:
+                players_in_teams += len([m for m in channel.members if not m.bot])
+            
+            # Perform cleanup - return players to waiting room
+            await self.voice_manager.cleanup_team_channels(interaction.guild, return_to_waiting=True)
+            
+            # Clear any active match
+            self.voice_manager.clear_active_match(interaction.guild.id)
+            
+            embed = EmbedTemplates.success_embed(
+                "Cleanup Complete",
+                f"✅ Cleaned up {len(team_channels)} team channel{'s' if len(team_channels) != 1 else ''}.\n"
+                f"✅ Returned {players_in_teams} player{'s' if players_in_teams != 1 else ''} to waiting room.\n"
+                f"✅ Cleared active match data."
+            )
+            await interaction.followup.send(embed=embed)
+            
+            logger.info(f"Cleanup performed by {interaction.user.display_name} in guild {interaction.guild.id}")
+            
+        except Exception as e:
+            logger.error(f"Error in cleanup command: {e}")
+            embed = EmbedTemplates.error_embed(
+                "Cleanup Error",
+                "An error occurred during cleanup. Please try again or contact an administrator."
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(TeamCommands(bot))

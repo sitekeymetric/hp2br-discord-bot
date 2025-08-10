@@ -3,6 +3,103 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v2.15.1-build.1 - 2025-08-09
+
+### Changes
+- **Enhanced team balancing for np=false mode**: Now balances good and bad players across teams instead of pure random assignment
+- **Skill tier distribution**: Players divided into high/mid/low skill tiers and distributed evenly across teams
+- **Regional balancing**: Maintains rating balance even with regional requirements - good/bad regional players distributed evenly
+- **Improved balance algorithm**: Teams are assigned players based on current team average rating to maintain fairness
+
+### Team Creation Improvements
+- **Rating-balanced assignment**: Replaces pure random assignment with skill-aware distribution
+- **Maintains randomness**: Shuffles within skill tiers to prevent predictable team compositions
+- **Better team equity**: Each team gets a mix of high, medium, and low rated players where possible
+- **Regional integration**: Regional requirements now work with rating balance - no more stacked regional teams
+
+### Algorithm Details
+- `_random_balanced_assignment()`: New skill-tier based distribution system
+- `_distribute_players_with_rating_balance()`: Balanced assignment for regional players
+- `_distribute_tier_evenly()`: Even distribution within skill levels
+- Enhanced logging shows skill distribution and balanced placement decisions
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-09T00:25:00.000000
+- Enhancement: Balanced team creation while maintaining randomness
+- Regional compatibility: Works with all existing regional features
+
+---
+## v2.15.0-build.1 - 2025-08-09
+
+### Major Feature: Placement Rating System v4.0.0
+
+#### Core Rating Scale Changes
+- **New baseline**: 5th place = 0 points (was 7th place)
+- **Reduced point ranges**: 1st = +15, 30th+ = -25 (was 1st = +25, 30th+ = -40)
+- **Balanced progression**: Designed for realistic rating targets over ~50 games
+
+#### New Rating Targets (after ~50 games)
+- **Great players**: ~2000 rating (avg +10 points/game)
+- **Normal players**: ~1500 rating (avg 0 points/game) 
+- **Struggling players**: ~1000 rating (avg -10 points/game)
+- **New players**: ~800 rating (learning phase)
+
+#### Detailed Point Distribution
+**Positive Tiers:**
+- 1st Place: +15 points
+- 2nd Place: +10 points
+- 3rd Place: +5 points
+- 4th Place: +2 points
+- 5th Place: 0 points (baseline)
+
+**Penalty Tiers:**
+- 6th Place: -3 points
+- 7th Place: -6 points
+- 8th Place: -10 points
+- 9th-30th Place: -10 to -25 points (scaled)
+- 30th+ Place: -25 points (maximum penalty)
+
+#### UI and Display Updates
+- Updated `/rating_scale` command with new v4.0.0 information
+- Simplified display removing complex opponent strength multipliers
+- Added progression targets and example calculations
+- Updated startup message to reflect new system
+- Updated match result previews with new point values
+
+### Technical Implementation
+- Updated `calculate_placement_rating_change()` in API routes
+- Updated `calculate_rating_change()` in Discord bot views
+- Maintained backward compatibility with existing match data
+- All existing ratings preserved during transition
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-09T00:20:00.000000
+- Breaking Change: Rating scale completely rebalanced
+- New Feature: More balanced long-term progression system
+
+---
+## v2.14.3-build.1 - 2025-08-09
+
+### Changes
+- **Added user-accessible `/cleanup` command**: Now available to all users in team_commands.py, not just administrators
+- **Enhanced cleanup functionality**: Shows count of channels cleaned and players returned to waiting room
+- **Improved error handling**: Better error messages and logging for cleanup operations
+- **Duplicate command resolution**: Admin-only `/cleanup` remains in admin_commands.py, user `/cleanup` added to team_commands.py
+
+### User Features
+- `/cleanup`: Clean up team voice channels and return players to waiting room (available to everyone)
+- Automatic player counting and status reporting
+- Clear success/error messaging
+- Comprehensive logging for troubleshooting
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-09T00:15:00.000000
+- New Feature: User-accessible cleanup functionality
+
+---
 ## v2.14.2-build.1 - 2025-08-09
 
 ### Changes

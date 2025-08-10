@@ -674,35 +674,49 @@ class TeamBalancer:
         region_players = [p for p in players if p.get('region_code') == required_region]
         non_region_players = [p for p in players if p.get('region_code') != required_region]
         
-        # Sort both groups by rating
-        region_players.sort(key=lambda p: p['rating_mu'] - (p['rating_sigma'] * 0.5), reverse=True)
-        non_region_players.sort(key=lambda p: p['rating_mu'] - (p['rating_sigma'] * 0.5), reverse=True)
+        # Sort both groups by rating for balanced distribution
+        region_players.sort(key=lambda p: p['rating_mu'], reverse=True)
+        non_region_players.sort(key=lambda p: p['rating_mu'], reverse=True)
+        
+        logger.info(f"Regional distribution: {len(region_players)} from {required_region}, {len(non_region_players)} others")
         
         # Initialize teams
         teams = [[] for _ in range(num_teams)]
         
-        # First, distribute regional players (one per team)
-        for i in range(min(len(region_players), num_teams)):
-            teams[i].append(region_players[i])
+        # Distribute regional players with rating balance
+        # Try to put one regional player per team, balancing by skill
+        if region_players:
+            # Shuffle regional players for variety within skill levels
+            random.shuffle(region_players)
+            
+            # Distribute one per team first (if we have enough)
+            for i in range(min(len(region_players), num_teams)):
+                teams[i].append(region_players[i])
+                logger.debug(f"Regional player {region_players[i]['username']} → Team {i + 1}")
+            
+            # Add remaining regional players using balanced distribution
+            remaining_region_players = region_players[num_teams:]
+            if remaining_region_players:
+                self._distribute_players_with_rating_balance(remaining_region_players, teams)
         
-        # Add remaining regional players using random distribution
-        remaining_region_players = region_players[num_teams:]
-        if remaining_region_players:
-            self._distribute_players_randomly(remaining_region_players, teams)
-        
-        # Distribute non-regional players using random distribution
+        # Distribute non-regional players using rating balance
         if non_region_players:
-            self._distribute_players_randomly(non_region_players, teams)
+            self._distribute_players_with_rating_balance(non_region_players, teams)
         
         return teams
     
     def _random_balanced_assignment(self, players: List[Dict], num_teams: int) -> List[List[Dict]]:
         """
-        Randomly assign players to teams while maintaining balanced team sizes
-        Much more random than snake draft - players can end up on any team
+        Assign players to teams with rating balance - good and bad players distributed evenly
+        Maintains randomness while ensuring balanced team ratings
         """
-        logger.info(f"=== RANDOM BALANCED ASSIGNMENT ===")
-        logger.info(f"Assigning {len(players)} players to {num_teams} teams")
+        logger.info(f"=== RATING-BALANCED ASSIGNMENT ===")
+        logger.info(f"Assigning {len(players)} players to {num_teams} teams with rating balance")
+        
+        # Sort players by rating to understand skill distribution
+        sorted_players = sorted(players, key=lambda p: p['rating_mu'], reverse=True)
+        player_ratings = [f"{p['username']}({p['rating_mu']:.0f})" for p in sorted_players]
+        logger.info(f"Players by skill: {player_ratings}")
         
         # Calculate target team sizes for even distribution
         total_players = len(players)
@@ -722,27 +736,28 @@ class TeamBalancer:
         # Initialize teams
         teams = [[] for _ in range(num_teams)]
         
-        # Randomly shuffle players for completely random assignment
-        shuffled_players = players.copy()
-        random.shuffle(shuffled_players)
+        # Distribute players in rating groups for balance
+        # Group players into skill tiers (high, mid, low) and distribute evenly
+        players_per_tier = max(1, len(sorted_players) // 3)
+        high_players = sorted_players[:players_per_tier]
+        mid_players = sorted_players[players_per_tier:players_per_tier*2]
+        low_players = sorted_players[players_per_tier*2:]
         
-        player_ratings = [f"{p['username']}({p['rating_mu']:.0f})" for p in shuffled_players]
-        logger.info(f"Shuffled player order: {player_ratings}")
+        logger.info(f"Skill distribution: {len(high_players)} high, {len(mid_players)} mid, {len(low_players)} low")
         
-        # Create a list of team slots (e.g., [0,0,0,1,1,1,2,2] for 3 teams with 3,3,2 players)
-        team_slots = []
-        for team_idx, size in enumerate(target_sizes):
-            team_slots.extend([team_idx] * size)
+        # Shuffle each tier for randomness within skill levels
+        random.shuffle(high_players)
+        random.shuffle(mid_players) 
+        random.shuffle(low_players)
         
-        # Shuffle the team slots for random assignment
-        random.shuffle(team_slots)
-        logger.info(f"Random team slot assignment: {team_slots}")
+        # Distribute high skill players first (one per team if possible)
+        self._distribute_tier_evenly(high_players, teams, "high skill")
         
-        # Assign players to teams based on shuffled slots
-        for i, player in enumerate(shuffled_players):
-            team_idx = team_slots[i]
-            teams[team_idx].append(player)
-            logger.debug(f"{player['username']} → Team {team_idx + 1}")
+        # Distribute mid skill players
+        self._distribute_tier_evenly(mid_players, teams, "mid skill")
+        
+        # Distribute remaining low skill players
+        self._distribute_tier_evenly(low_players, teams, "low skill")
         
         # Log final team composition with balance
         for i, team in enumerate(teams):
@@ -752,6 +767,73 @@ class TeamBalancer:
             logger.info(f"Team {i+1} ({len(team)} players): {team_names} (avg: {avg_rating:.1f})")
         
         return teams
+    
+    def _distribute_tier_evenly(self, players: List[Dict], teams: List[List[Dict]], tier_name: str):
+        """
+        Distribute players of a skill tier evenly across teams
+        """
+        if not players:
+            return
+            
+        num_teams = len(teams)
+        team_index = 0
+        
+        for player in players:
+            # Find team with least players of this tier or smallest team
+            current_sizes = [len(team) for team in teams]
+            min_size = min(current_sizes)
+            
+            # Prefer teams with minimum size
+            candidate_teams = [i for i, size in enumerate(current_sizes) if size == min_size]
+            
+            # If multiple teams have same size, pick randomly for variety
+            if len(candidate_teams) > 1:
+                team_idx = random.choice(candidate_teams)
+            else:
+                team_idx = candidate_teams[0]
+            
+            teams[team_idx].append(player)
+            logger.debug(f"{tier_name} player {player['username']} → Team {team_idx + 1}")
+            
+            team_index = (team_index + 1) % num_teams
+    
+    def _distribute_players_with_rating_balance(self, players: List[Dict], teams: List[List[Dict]]):
+        """
+        Distribute players to existing teams while maintaining rating balance
+        Good and bad players are distributed evenly across teams
+        """
+        if not players:
+            return
+        
+        # Sort players by rating
+        sorted_players = sorted(players, key=lambda p: p['rating_mu'], reverse=True)
+        
+        # Distribute in round-robin fashion, but with rating balance consideration
+        # This ensures each team gets a mix of high and low rated players
+        for i, player in enumerate(sorted_players):
+            # Calculate current team ratings to find the team needing balance
+            team_ratings = []
+            for team in teams:
+                if team:
+                    avg_rating = sum(p['rating_mu'] for p in team) / len(team)
+                    team_ratings.append(avg_rating)
+                else:
+                    team_ratings.append(1500.0)  # Default for empty team
+            
+            # Find teams with current lowest average rating
+            min_rating = min(team_ratings)
+            candidate_teams = [idx for idx, rating in enumerate(team_ratings) if rating <= min_rating + 50]  # Within 50 points
+            
+            # Among candidate teams, pick one with fewest players
+            team_sizes = [len(team) for team in teams]
+            min_size_in_candidates = min(team_sizes[idx] for idx in candidate_teams)
+            best_teams = [idx for idx in candidate_teams if team_sizes[idx] == min_size_in_candidates]
+            
+            # Pick randomly among best options for variety
+            chosen_team = random.choice(best_teams)
+            
+            teams[chosen_team].append(player)
+            logger.debug(f"Balanced placement: {player['username']} → Team {chosen_team + 1} (rating: {player['rating_mu']:.0f})")
     
     def _distribute_players_randomly(self, players: List[Dict], teams: List[List[Dict]]):
         """

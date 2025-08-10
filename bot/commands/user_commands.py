@@ -505,103 +505,87 @@ class UserCommands(commands.Cog):
             )
             await interaction.followup.send(embed=embed, ephemeral=True)
 
-    @app_commands.command(name="rating_scale", description="Show the Advanced Rating System v3.0.0 scale with opponent strength consideration")
+    @app_commands.command(name="rating_scale", description="Show the Placement Rating System v4.0.0 - balanced for long-term progression")
     async def rating_scale(self, interaction: discord.Interaction):
-        """Show the advanced rating scale explanation"""
+        """Show the placement rating scale explanation"""
         await interaction.response.defer(ephemeral=True)
         
         try:
             embed = discord.Embed(
-                title="🏆 Advanced Rating System v3.0.0",
-                description="**Complete rating scale with opponent strength consideration**\n"
-                           "**Key Feature**: Rating changes now factor in opponent team strength!\n"
-                           "**Base Range**: +50 (1st place) to -345 (30th place)",
+                title="🏆 Placement Rating System v4.0.0",
+                description="**Balanced for long-term progression**\n"
+                           "**Key Feature**: 5th place = 0 points (balanced baseline)\n"
+                           "**Range**: +15 (1st place) to -25 (30th place)",
                 color=Config.EMBED_COLOR
             )
             
-            # Winning tiers
+            # Positive tiers
             embed.add_field(
-                name="🎯 Winning Tiers (Base Scores)",
-                value="🥇 **1st Place**: +50 base (Champion)\n"
-                      "🥈 **2nd Place**: +35 base (Excellent)\n"
-                      "🥉 **3rd Place**: +25 base (Great)\n"
-                      "🏆 **4th Place**: +18 base (Very Good)\n"
-                      "🏆 **5th Place**: +12 base (Good)\n"
-                      "📊 **6th-8th**: +8 to ±0 base",
+                name="🎯 Positive Tiers",
+                value="🥇 **1st Place**: +15 points (Champion)\n"
+                      "🥈 **2nd Place**: +10 points (Excellent)\n"
+                      "🥉 **3rd Place**: +5 points (Great)\n"
+                      "🏆 **4th Place**: +2 points (Good)\n"
+                      "⚖️ **5th Place**: 0 points (Baseline)",
                 inline=True
             )
             
             # Penalty tiers
             embed.add_field(
-                name="📉 Penalty Tiers (Base Scores)",
-                value="📉 **9th-15th**: -5 to -50 base\n"
-                      "🔻 **16th-20th**: -62 to -120 base\n"
-                      "💀 **21st-25th**: -138 to -220 base\n"
-                      "💀 **26th-30th**: -243 to -345 base",
+                name="📉 Penalty Tiers",
+                value="📉 **6th Place**: -3 points\n"
+                      "📉 **7th Place**: -6 points\n"
+                      "🔻 **8th Place**: -10 points\n"
+                      "💀 **9th-30th**: -10 to -25 points\n"
+                      "💀 **30th+ Place**: -25 points (max)",
                 inline=True
             )
             
             embed.add_field(name="\u200b", value="\u200b", inline=True)  # Spacer
             
-            # Opponent strength multipliers
+            # Rating progression targets
             embed.add_field(
-                name="⚔️ Opponent Strength Multipliers",
-                value="💪 **Much Stronger (+500)**: ×2.2\n"
-                      "💪 **Stronger (+150)**: ×1.4\n"
-                      "⚖️ **Similar (±50)**: ×1.0\n"
-                      "📉 **Weaker (-150)**: ×0.6\n"
-                      "📉 **Much Weaker (-500)**: ×0.2",
+                name="🎯 Rating Progression Targets",
+                value="🏆 **Great Players**: ~2000 (avg +10/game)\n"
+                      "⚖️ **Normal Players**: ~1500 (avg 0/game)\n"
+                      "📉 **Struggling Players**: ~1000 (avg -10/game)\n"
+                      "🌱 **New Players**: ~800 (learning phase)",
                 inline=True
             )
             
-            # Rating tiers
+            # Rating tiers (simplified)
             embed.add_field(
                 name="🏆 Rating Tiers",
-                value="🏆 **Legendary (2200+)**: Top 0.1%\n"
-                      "💎 **Elite (2000+)**: Top 1%\n"
-                      "🥇 **Expert (1800+)**: Top 5%\n"
-                      "🥈 **Advanced (1600+)**: Top 15%\n"
-                      "🥉 **Intermediate (1400+)**: Middle 40%\n"
-                      "📊 **Beginner (1200+)**: Bottom 30%\n"
-                      "📈 **Novice (1000+)**: Bottom 10%\n"
-                      "🌱 **Learning (<1000)**: Bottom 4%",
+                value="🏆 **Elite (2000+)**: Top performers\n"
+                      "🥇 **Advanced (1600+)**: Strong players\n"
+                      "⚖️ **Average (1200-1600)**: Normal range\n"
+                      "📊 **Developing (800-1200)**: Learning phase\n"
+                      "🌱 **New (<800)**: Just starting",
                 inline=True
             )
             
-            # Climbing penalties
+            # System features
             embed.add_field(
-                name="📈 Rating Curve (Anti-Inflation)",
-                value="🏆 **Elite (2000+)**: ×0.3 climbing\n"
-                      "🥇 **Expert (1800+)**: ×0.5 climbing\n"
-                      "🥈 **Advanced (1600+)**: ×0.7 climbing\n"
-                      "📊 **Lower Tiers**: ×1.0 climbing\n\n"
-                      "💀 **Elite drops**: ×1.5 faster\n"
-                      "📉 **Expert drops**: ×1.3 faster",
-                inline=True
-            )
-            
-            # Real examples
-            embed.add_field(
-                name="🎮 Real Examples",
-                value="**Underdog Victory**: 1200 player beats 1600 teams → +90 points\n"
-                      "**Expected Elite Win**: 2100 player beats 1800 teams → +9 points\n"
-                      "**Elite Disaster**: 2000 player gets 25th place → -330 points\n"
-                      "**Your Scenario**: 1600 player, 1st vs weak opponents → +23 points",
+                name="✨ System Features",
+                value="• **Balanced baseline** - 5th place = no change\n"
+                      "• **Moderate rewards** - encourages consistent play\n"
+                      "• **Escalating penalties** - discourages poor performance\n"
+                      "• **Long-term progression** - designed for ~50 games\n"
+                      "• **Simple & fair** - no complex multipliers",
                 inline=False
             )
             
-            # Key features
+            # Examples
             embed.add_field(
-                name="✨ Key Features",
-                value="• **Opponent strength matters** - bigger rewards vs stronger teams\n"
-                      "• **Curved scaling** - harder to climb at higher ratings\n"
-                      "• **Enhanced penalties** - up to -345 for 30th place\n"
-                      "• **Individual recognition** - your skill vs team average\n"
-                      "• **Anti-inflation** - elite players drop faster",
+                name="📊 Example Progressions",
+                value="**Consistent 3rd place**: +5 × 50 games = +250 total (1750 rating)\n"
+                      "**Mix of 1st-5th**: Avg +5/game = +250 total (1750 rating)\n"
+                      "**Consistent 7th place**: -6 × 50 games = -300 total (1200 rating)\n"
+                      "**Very poor performance**: Avg -15/game = -750 total (750 rating)",
                 inline=False
             )
             
-            embed.set_footer(text=f"Advanced Rating System v3.0.0 • {get_bot_footer_text()}")
+            embed.set_footer(text=f"Placement Rating System v4.0.0 • {get_bot_footer_text()}")
             
             await interaction.followup.send(embed=embed, ephemeral=True)
             

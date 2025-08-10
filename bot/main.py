@@ -232,11 +232,11 @@ async def help_command(interaction: discord.Interaction):
     )
     
     embed.add_field(
-        name="🏆 New Placement-Based Rating System",
-        value="**No More Win/Loss!** All matches now use placement-based ratings:\n"
-              "• **Rank 7** = 1500 baseline (no rating change)\n"
-              "• **1st Place** = +25 rating maximum\n"
-              "• **30th+ Place** = -40 rating maximum\n"
+        name="🏆 Placement Rating System v4.0.0",
+        value="**Balanced for long-term progression!** All matches now use placement-based ratings:\n"
+              "• **5th Place** = 0 points (balanced baseline)\n"
+              "• **1st Place** = +15 points maximum\n"
+              "• **30th+ Place** = -25 points maximum\n"
               "• **Guild Matches**: Use consecutive ranks (1, 2, 3...)\n"
               "• **External Competitions**: Use actual ranks (1-30)\n"
               "• Use `/rating_scale` to see the full scale",

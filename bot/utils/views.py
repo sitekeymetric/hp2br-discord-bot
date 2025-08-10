@@ -785,22 +785,47 @@ class PlacementResultView(discord.ui.View):
         return True, ""
     
     def calculate_rating_change(self, placement: int) -> float:
-        """Calculate rating change based on placement (Rank 7 baseline system)"""
-        baseline_rank = 7
+        """
+        Calculate rating change based on placement (Rank 5 baseline system)
+        
+        Target ratings after ~50 games:
+        - Great players: ~2000 (avg +10/game)
+        - Normal players: ~1500 (avg 0/game) 
+        - Bad players: ~1000 (avg -10/game)
+        - New players: ~800 (avg -14/game)
+        """
+        baseline_rank = 5
         max_rank = 30
         
         if placement <= baseline_rank:
-            # Above baseline: scale from 0 to +25
+            # Above baseline: positive points
             if placement == baseline_rank:
                 return 0.0
-            performance_score = (baseline_rank - placement) / (baseline_rank - 1)
-            rating_change = performance_score * 25
+            elif placement == 1:
+                return 15.0  # 1st place
+            elif placement == 2:
+                return 10.0  # 2nd place
+            elif placement == 3:
+                return 5.0   # 3rd place
+            elif placement == 4:
+                return 2.0   # 4th place
         else:
-            # Below baseline: scale from 0 to -40
+            # Below baseline: negative points with escalating penalties
             if placement >= max_rank:
-                return -40.0
-            performance_score = (placement - baseline_rank) / (max_rank - baseline_rank)
-            rating_change = -performance_score * 40
+                return -25.0  # 30th+ place maximum penalty
+            
+            # Scale from 6th (-3) to 30th (-25)
+            # 6th = -3, 7th = -6, 8th = -10, scaling to 30th = -25
+            if placement == 6:
+                return -3.0
+            elif placement == 7:
+                return -6.0
+            elif placement == 8:
+                return -10.0
+            else:
+                # For 9th-30th, scale from -10 to -25
+                performance_score = (placement - 8) / (max_rank - 8)
+                rating_change = -10 + (performance_score * -15)  # Scale from -10 to -25
         
         return rating_change
     

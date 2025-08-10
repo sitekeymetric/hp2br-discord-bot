@@ -1,8 +1,8 @@
 {
   "major": 2,
-  "minor": 14,
-  "patch": 2,
+  "minor": 15,
+  "patch": 1,
   "build": 1,
-  "last_updated": "2025-08-09T00:10:00.000000",
-  "description": "Replaced snake draft with fully random balanced assignment for maximum team variety and unpredictability"
+  "last_updated": "2025-08-09T00:25:00.000000",
+  "description": "Enhanced team balancing to distribute good and bad players evenly when np=false, including regional balancing"
 }
