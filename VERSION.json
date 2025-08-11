@@ -1,8 +1,8 @@
 {
   "major": 2,
   "minor": 15,
-  "patch": 1,
+  "patch": 2,
   "build": 1,
-  "last_updated": "2025-08-09T00:25:00.000000",
-  "description": "Enhanced team balancing to distribute good and bad players evenly when np=false, including regional balancing"
+  "last_updated": "2025-08-09T00:30:00.000000",
+  "description": "Fixed duplicate cleanup command error by renaming admin command to admin_cleanup"
 }

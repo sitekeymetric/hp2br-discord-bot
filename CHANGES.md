@@ -3,6 +3,27 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v2.15.2-build.1 - 2025-08-09
+
+### Changes
+- **Fixed duplicate command registration error**: Renamed admin cleanup command to `/admin_cleanup` to resolve conflict
+- **Maintained dual cleanup functionality**: 
+  - `/cleanup` - Available to all users (team_commands.py)
+  - `/admin_cleanup` - Admin-only with detailed logging (admin_commands.py)
+- **Updated help documentation**: Reflects new command names and availability
+
+### Command Structure
+- **User cleanup**: `/cleanup` - Simple team channel cleanup for everyone
+- **Admin cleanup**: `/admin_cleanup` - Enhanced cleanup with admin privileges and detailed logging
+- **Help integration**: Both commands properly documented in startup help
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-09T00:30:00.000000
+- Bug Fix: Resolved Discord command registration conflict
+- Maintains backward compatibility for admin functionality
+
+---
 ## v2.15.1-build.1 - 2025-08-09
 
 ### Changes

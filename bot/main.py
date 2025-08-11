@@ -225,9 +225,10 @@ async def help_command(interaction: discord.Interaction):
     
     embed.add_field(
         name="🎯 Team Commands",
-        value="• `/create_teams [num_teams]` - Create balanced teams\n"
+        value="• `/create_teams [np] [region]` - Create balanced teams\n"
               "• `/record_result` - Record match results (placement-based)\n"
-              "• `/cancel_match` - Cancel current match",
+              "• `/cancel_match` - Cancel current match\n"
+              "• `/cleanup` - Clean up team channels (available to all)",
         inline=False
     )
     
@@ -246,7 +247,7 @@ async def help_command(interaction: discord.Interaction):
     embed.add_field(
         name="⚙️ Admin Commands",
         value="• `/setup` - Initial bot setup\n"
-              "• `/cleanup` - Clean up team channels\n"
+              "• `/admin_cleanup` - Admin cleanup with detailed logging\n"
               "• `/admin_delete_user <@user>` - Delete user account\n"
               "• `/admin_update_user <@user>` - Update user info\n"
               "• `/admin_reset_rating <@user>` - Reset user rating",
