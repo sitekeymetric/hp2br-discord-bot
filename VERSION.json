@@ -1,8 +1,8 @@
 {
   "major": 2,
-  "minor": 15,
-  "patch": 2,
+  "minor": 16,
+  "patch": 0,
   "build": 1,
-  "last_updated": "2025-08-09T00:30:00.000000",
-  "description": "Fixed duplicate cleanup command error by renaming admin command to admin_cleanup"
+  "last_updated": "2025-08-10T22:54:08.249837",
+  "description": "Updated voice channel creation to only occur when Create Team button is clicked for better user control"
 }

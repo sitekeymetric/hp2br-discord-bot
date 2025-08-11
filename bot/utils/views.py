@@ -11,11 +11,12 @@ logger = logging.getLogger(__name__)
 class TeamProposalView(discord.ui.View):
     """Interactive button for team proposals - Create Team only"""
     
-    def __init__(self, teams: List[List[Dict]], team_channels: List[discord.VoiceChannel], 
+    def __init__(self, teams: List[List[Dict]], num_teams: int, 
                  match_id: str, voice_manager):
         super().__init__(timeout=None)  # No timeout - buttons stay active
         self.teams = teams
-        self.team_channels = team_channels
+        self.num_teams = num_teams
+        self.team_channels = None  # Will be created when button is clicked
         self.match_id = match_id
         self.voice_manager = voice_manager
         
@@ -62,6 +63,36 @@ class TeamProposalView(discord.ui.View):
         self.result_sent = True
         
         try:
+            # Create team voice channels first
+            self.team_channels = await self.voice_manager.create_team_channels(interaction.guild, self.num_teams)
+            
+            if not self.team_channels or len(self.team_channels) != self.num_teams:
+                # Channel creation failed - clean up match and show error
+                try:
+                    from services.api_client import api_client
+                    await api_client.cancel_match(self.match_id)
+                except Exception as e:
+                    logger.error(f"Failed to cancel match after channel creation failure: {e}")
+                
+                # Clear active match
+                self.voice_manager.clear_active_match(interaction.guild.id)
+                
+                embed = discord.Embed(
+                    title="❌ Channel Creation Failed",
+                    description="Failed to create team voice channels. Please check bot permissions and try again.",
+                    color=Config.ERROR_COLOR
+                )
+                await interaction.followup.send(embed=embed, ephemeral=True)
+                
+                # Reset the result_sent flag so user could try again
+                self.result_sent = False
+                
+                # Re-enable button
+                for item in self.children:
+                    item.disabled = False
+                await interaction.edit_original_response(view=self)
+                return
+            
             # Move players to team channels
             discord_teams = []
             for team in self.teams:

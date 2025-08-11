@@ -269,16 +269,7 @@ class TeamCommands(commands.Cog):
                     await interaction.followup.send(embed=embed, ephemeral=True)
                     return
             
-            # Create team voice channels
-            team_channels = await self.voice_manager.create_team_channels(interaction.guild, actual_num_teams)
-            
-            if len(team_channels) != actual_num_teams:
-                embed = EmbedTemplates.error_embed(
-                    "Channel Creation Failed",
-                    "Failed to create team voice channels. Please check bot permissions."
-                )
-                await interaction.followup.send(embed=embed, ephemeral=True)
-                return
+            # Voice channels will be created when "Create Team" button is clicked
             
             # Create match in database
             match_data = await api_client.create_match(
@@ -288,8 +279,6 @@ class TeamCommands(commands.Cog):
             )
             
             if not match_data:
-                # Clean up channels if match creation failed
-                await self.voice_manager.cleanup_team_channels(interaction.guild, return_to_waiting=False)
                 embed = EmbedTemplates.error_embed(
                     "Database Error",
                     "Failed to create match in database. Please try again."
@@ -332,7 +321,7 @@ class TeamCommands(commands.Cog):
             # Create interactive view
             view = TeamProposalView(
                 teams=teams,
-                team_channels=team_channels,
+                num_teams=actual_num_teams,
                 match_id=match_id,
                 voice_manager=self.voice_manager
             )

@@ -3,6 +3,17 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v2.16.0-build.1 - 2025-08-10
+
+### Changes
+- Updated voice channel creation to only occur when Create Team button is clicked for better user control
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-10T22:54:08.249837
+
+---
+
 ## v2.15.2-build.1 - 2025-08-09
 
 ### Changes
