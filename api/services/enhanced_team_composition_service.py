@@ -15,7 +15,7 @@ class EnhancedTeamCompositionService:
     """Service for analyzing team composition performance beyond just wins"""
     
     @staticmethod
-    def get_performance_based_partnerships(db: Session, guild_id: int, limit: int = 15) -> List[Dict]:
+    def get_performance_based_partnerships(db: Session, guild_id: int, limit: int = 10) -> List[Dict]:
         """Get best performing 2-player partnerships based on multiple metrics"""
         try:
             query = text("""
@@ -89,7 +89,7 @@ class EnhancedTeamCompositionService:
             return []
     
     @staticmethod
-    def get_performance_based_trios(db: Session, guild_id: int, limit: int = 15) -> List[Dict]:
+    def get_performance_based_trios(db: Session, guild_id: int, limit: int = 10) -> List[Dict]:
         """Get best performing 3-player team compositions"""
         try:
             query = text("""
@@ -158,7 +158,7 @@ class EnhancedTeamCompositionService:
             return []
     
     @staticmethod
-    def get_performance_based_squads(db: Session, guild_id: int, limit: int = 15) -> List[Dict]:
+    def get_performance_based_squads(db: Session, guild_id: int, limit: int = 10) -> List[Dict]:
         """Get best performing 4-player team compositions"""
         try:
             query = text("""
@@ -230,9 +230,9 @@ class EnhancedTeamCompositionService:
     def get_enhanced_team_composition_stats(db: Session, guild_id: int) -> Dict:
         """Get comprehensive performance-based team composition statistics"""
         try:
-            partnerships = EnhancedTeamCompositionService.get_performance_based_partnerships(db, guild_id, 15)
-            trios = EnhancedTeamCompositionService.get_performance_based_trios(db, guild_id, 15)
-            squads = EnhancedTeamCompositionService.get_performance_based_squads(db, guild_id, 15)
+            partnerships = EnhancedTeamCompositionService.get_performance_based_partnerships(db, guild_id, 10)
+            trios = EnhancedTeamCompositionService.get_performance_based_trios(db, guild_id, 10)
+            squads = EnhancedTeamCompositionService.get_performance_based_squads(db, guild_id, 10)
             
             # Get total completed matches for context
             total_matches = db.query(Match).filter(

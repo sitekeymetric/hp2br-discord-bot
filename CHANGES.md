@@ -3,6 +3,17 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v2.24.3-build.1 - 2025-08-14
+
+### Changes
+- Fixed Discord embed field length limit error by using compact format and splitting results into multiple fields, reduced default to top 10
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-14T13:17:42.026283
+
+---
+
 ## v2.24.2-build.1 - 2025-08-14
 
 ### Changes

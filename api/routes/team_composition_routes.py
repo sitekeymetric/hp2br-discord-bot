@@ -99,7 +99,7 @@ def get_team_composition_stats(guild_id: int, db: Session = Depends(get_db)):
 
 # Enhanced performance-based endpoints
 @router.get("/performance/partnerships/{guild_id}", response_model=List[EnhancedPartnershipResponse])
-def get_performance_partnerships(guild_id: int, limit: int = 15, db: Session = Depends(get_db)):
+def get_performance_partnerships(guild_id: int, limit: int = 10, db: Session = Depends(get_db)):
     """Get best performing 2-player partnerships (performance-based)"""
     try:
         partnerships = EnhancedTeamCompositionService.get_performance_based_partnerships(db, guild_id, limit)
@@ -109,7 +109,7 @@ def get_performance_partnerships(guild_id: int, limit: int = 15, db: Session = D
         raise HTTPException(status_code=500, detail=f"Failed to get performance partnerships: {str(e)}")
 
 @router.get("/performance/trios/{guild_id}", response_model=List[EnhancedTeamCompositionResponse])
-def get_performance_trios(guild_id: int, limit: int = 15, db: Session = Depends(get_db)):
+def get_performance_trios(guild_id: int, limit: int = 10, db: Session = Depends(get_db)):
     """Get best performing 3-player team compositions (performance-based)"""
     try:
         trios = EnhancedTeamCompositionService.get_performance_based_trios(db, guild_id, limit)
@@ -119,7 +119,7 @@ def get_performance_trios(guild_id: int, limit: int = 15, db: Session = Depends(
         raise HTTPException(status_code=500, detail=f"Failed to get performance trio compositions: {str(e)}")
 
 @router.get("/performance/squads/{guild_id}", response_model=List[EnhancedTeamCompositionResponse])
-def get_performance_squads(guild_id: int, limit: int = 15, db: Session = Depends(get_db)):
+def get_performance_squads(guild_id: int, limit: int = 10, db: Session = Depends(get_db)):
     """Get best performing 4-player team compositions (performance-based)"""
     try:
         squads = EnhancedTeamCompositionService.get_performance_based_squads(db, guild_id, limit)

@@ -1,8 +1,8 @@
 {
   "major": 2,
   "minor": 24,
-  "patch": 2,
+  "patch": 3,
   "build": 1,
-  "last_updated": "2025-08-14T12:56:55.642010",
-  "description": "Simplified /leaderboard options: removed old win-based compositions, changed 'Team Performance' keyword to 'tp' for easier typing"
+  "last_updated": "2025-08-14T13:17:42.026283",
+  "description": "Fixed Discord embed field length limit error by using compact format and splitting results into multiple fields, reduced default to top 10"
 }

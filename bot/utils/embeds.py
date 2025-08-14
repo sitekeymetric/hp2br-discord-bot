@@ -680,84 +680,98 @@ class EmbedTemplates:
             color=Config.EMBED_COLOR
         )
         
-        # Top Partnerships (2-player)
+        # Top Partnerships (2-player) - Split into chunks to avoid 1024 char limit
         partnerships = composition_stats.get('top_partnerships', [])
         if partnerships:
-            partnership_text = []
-            for i, partnership in enumerate(partnerships, 1):
-                name = partnership['partnership']
-                matches = partnership['matches_played']
-                placement = partnership['avg_placement']
-                rating_change = partnership['avg_rating_change']
-                score = partnership['performance_score']
-                top3 = partnership['top3_finishes']
-                
-                # Create performance summary
-                performance_line = f"{i}. **{name}** (Score: {score})"
-                details_line = f"   📊 {matches} matches • Avg: {placement} place • Rating: {rating_change:+.1f} • Top 3: {top3}x"
-                partnership_text.append(f"{performance_line}\n{details_line}")
+            # Split partnerships into chunks of 5 to avoid field length limits
+            partnership_chunks = [partnerships[i:i+5] for i in range(0, len(partnerships), 5)]
             
-            embed.add_field(
-                name="👥 Top 15 Partnerships (2-Player)",
-                value="\n".join(partnership_text) if partnership_text else "No data available",
-                inline=False
-            )
+            for chunk_idx, chunk in enumerate(partnership_chunks):
+                partnership_text = []
+                for i, partnership in enumerate(chunk, chunk_idx * 5 + 1):
+                    name = partnership['partnership']
+                    matches = partnership['matches_played']
+                    placement = partnership['avg_placement']
+                    rating_change = partnership['avg_rating_change']
+                    score = partnership['performance_score']
+                    top3 = partnership['top3_finishes']
+                    
+                    # Create compact performance summary
+                    performance_line = f"{i}. **{name}** ({score})"
+                    details_line = f"   {matches}m • {placement}p • {rating_change:+.1f}r • {top3}t3"
+                    partnership_text.append(f"{performance_line}\n{details_line}")
+                
+                field_name = f"👥 Partnerships {chunk_idx * 5 + 1}-{min((chunk_idx + 1) * 5, len(partnerships))}" if chunk_idx > 0 else "👥 Top Partnerships (2-Player)"
+                embed.add_field(
+                    name=field_name,
+                    value="\n".join(partnership_text) if partnership_text else "No data available",
+                    inline=True if chunk_idx > 0 else False
+                )
         
-        # Top Trios (3-player)
+        # Top Trios (3-player) - Split into chunks
         trios = composition_stats.get('top_trios', [])
         if trios:
-            trio_text = []
-            for i, trio in enumerate(trios, 1):
-                name = trio['composition']
-                if len(name) > 40:
-                    name = name[:37] + "..."
-                matches = trio['matches_played']
-                placement = trio['avg_placement']
-                rating_change = trio['avg_rating_change']
-                score = trio['performance_score']
-                top3 = trio['top3_finishes']
-                
-                performance_line = f"{i}. **{name}** (Score: {score})"
-                details_line = f"   📊 {matches} matches • Avg: {placement} place • Rating: {rating_change:+.1f} • Top 3: {top3}x"
-                trio_text.append(f"{performance_line}\n{details_line}")
+            # Split trios into chunks of 4 to avoid field length limits (longer names)
+            trio_chunks = [trios[i:i+4] for i in range(0, len(trios), 4)]
             
-            embed.add_field(
-                name="🔺 Top 15 Trios (3-Player)",
-                value="\n".join(trio_text) if trio_text else "No data available",
-                inline=False
-            )
+            for chunk_idx, chunk in enumerate(trio_chunks):
+                trio_text = []
+                for i, trio in enumerate(chunk, chunk_idx * 4 + 1):
+                    name = trio['composition']
+                    if len(name) > 35:
+                        name = name[:32] + "..."
+                    matches = trio['matches_played']
+                    placement = trio['avg_placement']
+                    rating_change = trio['avg_rating_change']
+                    score = trio['performance_score']
+                    top3 = trio['top3_finishes']
+                    
+                    performance_line = f"{i}. **{name}** ({score})"
+                    details_line = f"   {matches}m • {placement}p • {rating_change:+.1f}r • {top3}t3"
+                    trio_text.append(f"{performance_line}\n{details_line}")
+                
+                field_name = f"🔺 Trios {chunk_idx * 4 + 1}-{min((chunk_idx + 1) * 4, len(trios))}" if chunk_idx > 0 else "🔺 Top Trios (3-Player)"
+                embed.add_field(
+                    name=field_name,
+                    value="\n".join(trio_text) if trio_text else "No data available",
+                    inline=True if chunk_idx > 0 else False
+                )
         
-        # Top Squads (4-player)
+        # Top Squads (4-player) - Split into chunks
         squads = composition_stats.get('top_squads', [])
         if squads:
-            squad_text = []
-            for i, squad in enumerate(squads, 1):
-                name = squad['composition']
-                if len(name) > 40:
-                    name = name[:37] + "..."
-                matches = squad['matches_played']
-                placement = squad['avg_placement']
-                rating_change = squad['avg_rating_change']
-                score = squad['performance_score']
-                top3 = squad['top3_finishes']
-                
-                performance_line = f"{i}. **{name}** (Score: {score})"
-                details_line = f"   📊 {matches} matches • Avg: {placement} place • Rating: {rating_change:+.1f} • Top 3: {top3}x"
-                squad_text.append(f"{performance_line}\n{details_line}")
+            # Split squads into chunks of 4 to avoid field length limits
+            squad_chunks = [squads[i:i+4] for i in range(0, len(squads), 4)]
             
-            embed.add_field(
-                name="🔷 Top 15 Squads (4-Player)",
-                value="\n".join(squad_text) if squad_text else "No data available",
-                inline=False
-            )
+            for chunk_idx, chunk in enumerate(squad_chunks):
+                squad_text = []
+                for i, squad in enumerate(chunk, chunk_idx * 4 + 1):
+                    name = squad['composition']
+                    if len(name) > 35:
+                        name = name[:32] + "..."
+                    matches = squad['matches_played']
+                    placement = squad['avg_placement']
+                    rating_change = squad['avg_rating_change']
+                    score = squad['performance_score']
+                    top3 = squad['top3_finishes']
+                    
+                    performance_line = f"{i}. **{name}** ({score})"
+                    details_line = f"   {matches}m • {placement}p • {rating_change:+.1f}r • {top3}t3"
+                    squad_text.append(f"{performance_line}\n{details_line}")
+                
+                field_name = f"🔷 Squads {chunk_idx * 4 + 1}-{min((chunk_idx + 1) * 4, len(squads))}" if chunk_idx > 0 else "🔷 Top Squads (4-Player)"
+                embed.add_field(
+                    name=field_name,
+                    value="\n".join(squad_text) if squad_text else "No data available",
+                    inline=True if chunk_idx > 0 else False
+                )
         
-        # Add explanation about performance scoring
+        # Add compact explanation about performance scoring
         embed.add_field(
-            name="📈 Performance Scoring",
-            value="• **Better Placement**: Lower average placement = higher score\n"
-                  "• **Rating Growth**: Positive rating changes boost score\n"
-                  "• **Consistency**: Multiple matches together show reliability\n"
-                  "• **Top 3 Finishes**: Frequent podium finishes indicate strong performance",
+            name="📈 Legend",
+            value="**Score Format**: (Performance Score)\n"
+                  "**Details**: matches • avg_place • rating_change • top3_finishes\n"
+                  "Higher score = better overall performance",
             inline=False
         )
         
