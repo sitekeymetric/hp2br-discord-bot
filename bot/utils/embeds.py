@@ -324,6 +324,62 @@ class EmbedTemplates:
         return embed
     
     @staticmethod
+    def openskill_leaderboard_embed(users: List[Dict], guild_name: str, page: int = 1, total_pages: int = 1) -> discord.Embed:
+        """OpenSkill leaderboard display"""
+        embed = discord.Embed(
+            title=f"🧪 {guild_name} OpenSkill Leaderboard (Beta)",
+            description="Team-based skill assessment rankings",
+            color=Config.EMBED_COLOR
+        )
+        
+        if not users:
+            embed.description = "No OpenSkill data found. Complete some matches to generate ratings!"
+            return embed
+        
+        leaderboard_text = []
+        start_rank = (page - 1) * 10 + 1
+        
+        for i, user in enumerate(users, start=start_rank):
+            username = user.get("username", "Unknown")
+            display_rating = user.get("rating_mu", 1500)  # Using rating_mu as display_rating
+            sigma = user.get("rating_sigma", 8.333)
+            games = user.get("games_played", 0)
+            
+            # Convert display rating back to mu for proper display
+            mu = display_rating / 60 if display_rating > 100 else display_rating
+            
+            # Medal emojis for top 3
+            if i == 1:
+                rank_emoji = "🥇"
+            elif i == 2:
+                rank_emoji = "🥈"
+            elif i == 3:
+                rank_emoji = "🥉"
+            else:
+                rank_emoji = f"{i}."
+            
+            leaderboard_text.append(
+                f"{rank_emoji} **{username}** - {display_rating:.0f} ({mu:.1f}μ ± {sigma:.1f}σ, {games} games)"
+            )
+        
+        embed.description = "\n".join(leaderboard_text)
+        
+        # Add explanation
+        embed.add_field(
+            name="🧪 About OpenSkill (Beta)",
+            value="Team-based skill assessment that considers team composition and synergy.\n"
+                  "Higher μ (mu) = higher skill, lower σ (sigma) = more confident rating.",
+            inline=False
+        )
+        
+        if total_pages > 1:
+            embed.set_footer(text=f"Page {page}/{total_pages} • {get_bot_footer_text()}")
+        else:
+            embed.set_footer(text=get_bot_footer_text())
+        
+        return embed
+    
+    @staticmethod
     def match_history_embed(matches: List[Dict], username: str = None, current_rank: int = 0, current_rating: float = 0) -> discord.Embed:
         """Match history display with rank and enhanced skill change information"""
         title = f"📋 Match History"

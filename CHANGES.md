@@ -3,6 +3,17 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v2.21.0-build.1 - 2025-08-14
+
+### Changes
+- Added rating system choice to /leaderboard command - users can now choose between traditional (default) and OpenSkill (beta) leaderboards
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-14T12:16:25.798261
+
+---
+
 ## v2.20.1-build.1 - 2025-08-14
 
 ### Changes

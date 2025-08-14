@@ -327,13 +327,26 @@ class UserCommands(commands.Cog):
             await interaction.followup.send(embed=embed, ephemeral=True)
     
     @app_commands.command(name="leaderboard", description="Show guild leaderboard (auto-syncs usernames)")
-    @app_commands.describe(limit="Number of players to show (default: 10, max: 25)")
-    async def leaderboard(self, interaction: discord.Interaction, limit: Optional[int] = 10):
-        """Display top players in the guild - shows all registered users"""
+    @app_commands.describe(
+        limit="Number of players to show (default: 10, max: 25)",
+        rating_system="Rating system to display (default: traditional)"
+    )
+    @app_commands.choices(rating_system=[
+        app_commands.Choice(name="Traditional (Placement-based)", value="traditional"),
+        app_commands.Choice(name="OpenSkill (Team-based) - Beta", value="openskill")
+    ])
+    async def leaderboard(self, interaction: discord.Interaction, 
+                         limit: Optional[int] = 10,
+                         rating_system: Optional[str] = "traditional"):
+        """Display top players in the guild - shows all registered users with choice of rating system"""
         await interaction.response.defer()
         
         # Validate limit
         limit = max(1, min(limit, 25))
+        
+        # Validate rating system
+        if rating_system not in ["traditional", "openskill"]:
+            rating_system = "traditional"
         
         try:
             # Auto-register any players currently in waiting room
@@ -359,33 +372,94 @@ class UserCommands(commands.Cog):
                     except Exception as e:
                         logger.error(f"Error processing {member.display_name}: {e}")
             
-            # Get users with completed match statistics (includes users with 0 completed matches)
-            users = await api_client.get_guild_users_completed_stats(interaction.guild.id)
-            
-            if not users:
-                embed = EmbedTemplates.warning_embed(
-                    "No Players Found",
-                    "No players are registered in this guild yet!\n\n"
-                    "**To get registered:**\n"
-                    "• Join the **Waiting Room** voice channel, then run `/leaderboard` again\n"
-                    "• Or use `/register` to register manually"
+            if rating_system == "openskill":
+                # Get OpenSkill leaderboard
+                try:
+                    openskill_users = await api_client.get_openskill_leaderboard(interaction.guild.id, limit)
+                    
+                    if not openskill_users:
+                        embed = EmbedTemplates.warning_embed(
+                            "No OpenSkill Data",
+                            "No OpenSkill ratings found for this guild yet!\n\n"
+                            "OpenSkill ratings are calculated from completed matches.\n"
+                            "Try using `/leaderboard traditional` to see placement ratings."
+                        )
+                        await interaction.followup.send(embed=embed)
+                        return
+                    
+                    # Convert OpenSkill data to format expected by embed template
+                    users = []
+                    for osr in openskill_users:
+                        # Get username from traditional system or use user_id
+                        try:
+                            user_data = await api_client.get_user_completed_stats(interaction.guild.id, osr['user_id'])
+                            username = user_data.get('username', f"User {osr['user_id']}") if user_data else f"User {osr['user_id']}"
+                        except:
+                            username = f"User {osr['user_id']}"
+                        
+                        users.append({
+                            'user_id': osr['user_id'],
+                            'username': username,
+                            'rating_mu': osr['display_rating'],  # Use display rating as mu for sorting
+                            'rating_sigma': osr['sigma'],
+                            'games_played': osr['games_played'],
+                            'wins': 0,  # Not tracked in OpenSkill
+                            'losses': 0,  # Not tracked in OpenSkill
+                            'draws': 0,  # Not tracked in OpenSkill
+                            'region_code': None,
+                            'created_at': None,
+                            'last_updated': osr['last_updated']
+                        })
+                    
+                    # Sync usernames for OpenSkill users
+                    users = await self._sync_multiple_usernames(interaction.guild, users)
+                    
+                    # Sort by OpenSkill display rating
+                    users.sort(key=lambda x: x.get("rating_mu", 1500), reverse=True)
+                    
+                    # Create OpenSkill leaderboard embed
+                    embed = EmbedTemplates.openskill_leaderboard_embed(
+                        users=users,
+                        guild_name=interaction.guild.name
+                    )
+                    
+                except Exception as e:
+                    logger.error(f"Error getting OpenSkill leaderboard: {e}")
+                    embed = EmbedTemplates.error_embed(
+                        "OpenSkill Error",
+                        "Failed to retrieve OpenSkill leaderboard. Try using traditional rating system."
+                    )
+                    await interaction.followup.send(embed=embed, ephemeral=True)
+                    return
+            else:
+                # Traditional leaderboard (existing logic)
+                # Get users with completed match statistics (includes users with 0 completed matches)
+                users = await api_client.get_guild_users_completed_stats(interaction.guild.id)
+                
+                if not users:
+                    embed = EmbedTemplates.warning_embed(
+                        "No Players Found",
+                        "No players are registered in this guild yet!\n\n"
+                        "**To get registered:**\n"
+                        "• Join the **Waiting Room** voice channel, then run `/leaderboard` again\n"
+                        "• Or use `/register` to register manually"
+                    )
+                    await interaction.followup.send(embed=embed)
+                    return
+                
+                # Sync usernames for all users in the leaderboard
+                users = await self._sync_multiple_usernames(interaction.guild, users)
+                
+                # Sort by rating (mu) descending, then by games played descending
+                users.sort(key=lambda x: (x.get("rating_mu", 1500), x.get("games_played", 0)), reverse=True)
+                
+                # Limit results
+                users = users[:limit]
+                
+                embed = EmbedTemplates.leaderboard_embed(
+                    users=users,
+                    guild_name=interaction.guild.name
                 )
-                await interaction.followup.send(embed=embed)
-                return
-            
-            # Sync usernames for all users in the leaderboard
-            users = await self._sync_multiple_usernames(interaction.guild, users)
-            
-            # Sort by rating (mu) descending, then by games played descending
-            users.sort(key=lambda x: (x.get("rating_mu", 1500), x.get("games_played", 0)), reverse=True)
-            
-            # Limit results
-            users = users[:limit]
-            
-            embed = EmbedTemplates.leaderboard_embed(
-                users=users,
-                guild_name=interaction.guild.name
-            )
             
             
             await interaction.followup.send(embed=embed)

@@ -1,8 +1,8 @@
 {
   "major": 2,
-  "minor": 20,
-  "patch": 1,
+  "minor": 21,
+  "patch": 0,
   "build": 1,
-  "last_updated": "2025-08-14T12:12:03.795702",
-  "description": "Fixed OpenSkill database model relationship error that was causing /stats command to fail with 500 error"
+  "last_updated": "2025-08-14T12:16:25.798261",
+  "description": "Added rating system choice to /leaderboard command - users can now choose between traditional (default) and OpenSkill (beta) leaderboards"
 }
