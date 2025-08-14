@@ -1,8 +1,8 @@
 {
   "major": 2,
   "minor": 16,
-  "patch": 4,
+  "patch": 5,
   "build": 1,
-  "last_updated": "2025-08-14T00:05:00.000000",
-  "description": "Removed /ping and /teammates commands to clean up command list and reduce clutter"
+  "last_updated": "2025-08-14T10:22:07.705683",
+  "description": "Removed unused commands: /reset_user, /guild_stats, and advanced_rating_commands.py file to clean up command registry"
 }

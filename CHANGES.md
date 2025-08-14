@@ -3,6 +3,17 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v2.16.5-build.1 - 2025-08-14
+
+### Changes
+- Removed unused commands: /reset_user, /guild_stats, and advanced_rating_commands.py file to clean up command registry
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-14T10:22:07.705683
+
+---
+
 ## v2.16.3-build.1 - 2025-08-14
 
 ### Changes
