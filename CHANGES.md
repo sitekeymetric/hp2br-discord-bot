@@ -3,6 +3,28 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v2.18.2-build.1 - 2025-08-14
+
+### Changes
+- Added automated pending matches cleanup system - cleaned up 6 old pending matches, created maintenance scripts
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-14T11:51:04.693555
+
+---
+
+## v2.18.1-build.1 - 2025-08-14
+
+### Changes
+- Fixed OpenSkill migration script - successfully processed 47 historical matches and calculated ratings for 27 users
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-14T11:47:11.985104
+
+---
+
 ## v2.18.0-build.1 - 2025-08-14
 
 ### Changes

@@ -55,7 +55,7 @@ def calculate_openskill_from_history():
         cursor.execute("""
             SELECT match_id, guild_id, created_at, total_teams
             FROM matches 
-            WHERE status = 'completed'
+            WHERE status = 'COMPLETED'
             ORDER BY created_at ASC
         """)
         
@@ -143,12 +143,12 @@ def calculate_openskill_from_history():
         
         # Show top 10 OpenSkill ratings
         cursor.execute("""
-            SELECT or.user_id, u.username, or.mu, or.sigma, or.games_played,
-                   (or.mu * 60) as display_rating
-            FROM openskill_ratings or
-            JOIN users u ON or.guild_id = u.guild_id AND or.user_id = u.user_id
-            WHERE or.games_played > 0
-            ORDER BY or.mu DESC
+            SELECT osr.user_id, u.username, osr.mu, osr.sigma, osr.games_played,
+                   (osr.mu * 60) as display_rating
+            FROM openskill_ratings osr
+            JOIN users u ON osr.guild_id = u.guild_id AND osr.user_id = u.user_id
+            WHERE osr.games_played > 0
+            ORDER BY osr.mu DESC
             LIMIT 10
         """)
         
