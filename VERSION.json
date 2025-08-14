@@ -1,8 +1,8 @@
 {
   "major": 2,
   "minor": 16,
-  "patch": 0,
+  "patch": 1,
   "build": 1,
-  "last_updated": "2025-08-10T22:54:08.249837",
-  "description": "Updated voice channel creation to only occur when Create Team button is clicked for better user control"
+  "last_updated": "2025-08-13T21:21:26.859943",
+  "description": "Fixed team balancing issue where teams could have 1 player or more than 4 players due to snake draft distribution bugs"
 }

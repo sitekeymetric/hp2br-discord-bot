@@ -145,6 +145,8 @@ class TeamBalancer:
         for player in players:
             # Find next available team that isn't full
             attempts = 0
+            original_team_index = team_index
+            
             while len(teams[team_index]) >= team_sizes[team_index] and attempts < len(team_sizes):
                 team_index += direction
                 
@@ -158,19 +160,34 @@ class TeamBalancer:
                 
                 attempts += 1
             
+            # Safety check: if no team has space, place in team with most available space
+            if attempts >= len(team_sizes):
+                available_spaces = [(team_sizes[i] - len(teams[i])) for i in range(len(teams))]
+                max_space = max(available_spaces)
+                if max_space > 0:
+                    team_index = available_spaces.index(max_space)
+                else:
+                    # All teams are at or over capacity, find smallest team
+                    current_sizes = [len(team) for team in teams]
+                    min_size = min(current_sizes)
+                    team_index = current_sizes.index(min_size)
+                logger.warning(f"Custom distribution: placing {player['username']} in team {team_index + 1} (overflow scenario)")
+            
             # Add player to current team
             teams[team_index].append(player)
+            logger.debug(f"Custom: placed {player['username']} on Team {team_index + 1} (size: {len(teams[team_index])}/{team_sizes[team_index]})")
             
-            # Move to next team
-            team_index += direction
-            
-            # Reverse direction when reaching ends
-            if team_index >= len(team_sizes):
-                team_index = len(team_sizes) - 1
-                direction = -1
-            elif team_index < 0:
-                team_index = 0
-                direction = 1
+            # Move to next team (only if we found a valid team)
+            if attempts < len(team_sizes):
+                team_index += direction
+                
+                # Reverse direction when reaching ends
+                if team_index >= len(team_sizes):
+                    team_index = len(team_sizes) - 1
+                    direction = -1
+                elif team_index < 0:
+                    team_index = 0
+                    direction = 1
     
     async def create_balanced_teams(self, members: List[discord.Member], num_teams: int, guild_id: int, required_region: str = None, np_mode: bool = False) -> Tuple[List[List[Dict]], List[float], float]:
         """
@@ -201,11 +218,27 @@ class TeamBalancer:
             # 6+ players: Use normal balancing algorithm with region requirement and optional NP mode
             teams = await self._create_balanced_teams_with_region(players_with_ratings, num_teams, guild_id, required_region, np_mode)
         
+        # Validate final team sizes
+        team_sizes = [len(team) for team in teams]
+        min_size = min(team_sizes) if team_sizes else 0
+        max_size = max(team_sizes) if team_sizes else 0
+        
+        if max_size - min_size > 1:
+            logger.warning(f"Team size imbalance detected: {team_sizes}")
+            # Fix the imbalance by redistributing players
+            teams = self._fix_team_size_imbalance(teams)
+        
+        # Validate no empty teams
+        teams = [team for team in teams if team]  # Remove any empty teams
+        
         # Calculate team ratings and balance score
         team_ratings = [self._calculate_team_rating(team) for team in teams]
         balance_score = self._calculate_balance_score(team_ratings)
         
-        logger.info(f"Created {num_teams} teams with balance score: {balance_score:.2f}")
+        # Final validation log
+        final_sizes = [len(team) for team in teams]
+        logger.info(f"Created {len(teams)} teams with sizes: {final_sizes}")
+        logger.info(f"Balance score: {balance_score:.2f}")
         logger.info(f"Team ratings: {[f'{rating:.1f}' for rating in team_ratings]}")
         if required_region:
             logger.info(f"Region requirement: {required_region}")
@@ -509,7 +542,7 @@ class TeamBalancer:
         logger.debug(f"Starting snake draft with team {team_index + 1} (randomized)")
         
         for player in sorted_players:
-            # Find next available team in snake order
+            # Find next available team that has space
             attempts = 0
             while len(teams[team_index]) >= target_sizes[team_index] and attempts < num_teams:
                 # Move to next team in snake pattern
@@ -525,19 +558,28 @@ class TeamBalancer:
                 
                 attempts += 1
             
+            # Safety check: if all teams are full according to target sizes, place in smallest team
+            if attempts >= num_teams:
+                current_sizes = [len(team) for team in teams]
+                min_size = min(current_sizes)
+                team_index = current_sizes.index(min_size)
+                logger.warning(f"All teams at target size, placing {player['username']} in smallest team {team_index + 1}")
+            
             # Add player to current team
             teams[team_index].append(player)
+            logger.debug(f"Placed {player['username']} on Team {team_index + 1} (size: {len(teams[team_index])}/{target_sizes[team_index]})")
             
-            # Move to next team for next iteration
-            team_index += direction
-            
-            # Reverse direction when reaching ends
-            if team_index >= num_teams:
-                team_index = num_teams - 1
-                direction = -1
-            elif team_index < 0:
-                team_index = 0
-                direction = 1
+            # Move to next team for next iteration (only if we're not in overflow mode)
+            if attempts < num_teams:
+                team_index += direction
+                
+                # Reverse direction when reaching ends
+                if team_index >= num_teams:
+                    team_index = num_teams - 1
+                    direction = -1
+                elif team_index < 0:
+                    team_index = 0
+                    direction = 1
         
         # Log team composition with sizes
         for i, team in enumerate(teams):
@@ -549,6 +591,105 @@ class TeamBalancer:
         # Log distribution summary
         team_sizes = [len(team) for team in teams]
         logger.info(f"Team size distribution: {team_sizes} (total: {sum(team_sizes)} players)")
+        
+        # Validate and fix team sizes if needed
+        teams = self._validate_and_fix_team_sizes(teams, target_sizes)
+        
+        return teams
+    
+    def _validate_and_fix_team_sizes(self, teams: List[List[Dict]], target_sizes: List[int]) -> List[List[Dict]]:
+        """
+        Validate team sizes and fix any imbalances by redistributing players
+        """
+        current_sizes = [len(team) for team in teams]
+        
+        # Check if any team is significantly over/under target
+        max_allowed_diff = 1  # Allow at most 1 player difference
+        needs_fixing = False
+        
+        for i, (current, target) in enumerate(zip(current_sizes, target_sizes)):
+            if abs(current - target) > max_allowed_diff:
+                logger.warning(f"Team {i+1} size problem: {current} players (target: {target})")
+                needs_fixing = True
+        
+        if not needs_fixing:
+            logger.debug("Team sizes are within acceptable range")
+            return teams
+        
+        logger.info("Fixing team size imbalances...")
+        
+        # Collect all players and redistribute them properly
+        all_players = []
+        for team in teams:
+            all_players.extend(team)
+        
+        # Clear teams and redistribute
+        fixed_teams = [[] for _ in range(len(teams))]
+        
+        # Simple round-robin distribution with target size constraints
+        team_index = 0
+        for player in all_players:
+            # Find next team that needs players
+            attempts = 0
+            while len(fixed_teams[team_index]) >= target_sizes[team_index] and attempts < len(teams):
+                team_index = (team_index + 1) % len(teams)
+                attempts += 1
+            
+            # If all teams are at target, place in smallest team
+            if attempts >= len(teams):
+                current_sizes = [len(team) for team in fixed_teams]
+                min_size = min(current_sizes)
+                team_index = current_sizes.index(min_size)
+            
+            fixed_teams[team_index].append(player)
+            team_index = (team_index + 1) % len(teams)
+        
+        # Log the fix
+        new_sizes = [len(team) for team in fixed_teams]
+        logger.info(f"Fixed team sizes: {current_sizes} → {new_sizes}")
+        
+        return fixed_teams
+    
+    def _fix_team_size_imbalance(self, teams: List[List[Dict]]) -> List[List[Dict]]:
+        """
+        Fix team size imbalances by moving players from larger teams to smaller teams
+        """
+        if not teams:
+            return teams
+        
+        team_sizes = [len(team) for team in teams]
+        min_size = min(team_sizes)
+        max_size = max(team_sizes)
+        
+        logger.info(f"Fixing team size imbalance: sizes {team_sizes}")
+        
+        # Keep moving players until teams are balanced
+        max_iterations = 20  # Prevent infinite loops
+        iterations = 0
+        
+        while max_size - min_size > 1 and iterations < max_iterations:
+            # Find largest and smallest teams
+            largest_team_idx = team_sizes.index(max_size)
+            smallest_team_idx = team_sizes.index(min_size)
+            
+            # Move one player from largest to smallest team
+            if teams[largest_team_idx]:
+                player_to_move = teams[largest_team_idx].pop()
+                teams[smallest_team_idx].append(player_to_move)
+                
+                logger.debug(f"Moved {player_to_move['username']} from Team {largest_team_idx + 1} to Team {smallest_team_idx + 1}")
+            
+            # Recalculate sizes
+            team_sizes = [len(team) for team in teams]
+            min_size = min(team_sizes)
+            max_size = max(team_sizes)
+            iterations += 1
+        
+        if iterations >= max_iterations:
+            logger.warning("Hit maximum iterations while fixing team sizes")
+        
+        final_sizes = [len(team) for team in teams]
+        logger.info(f"Team size balance fixed: {final_sizes}")
         
         return teams
     

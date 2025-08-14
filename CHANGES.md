@@ -3,6 +3,17 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v2.16.1-build.1 - 2025-08-13
+
+### Changes
+- Fixed team balancing issue where teams could have 1 player or more than 4 players due to snake draft distribution bugs
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-13T21:21:26.859943
+
+---
+
 ## v2.16.0-build.1 - 2025-08-10
 
 ### Changes
