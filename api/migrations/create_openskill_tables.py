@@ -100,12 +100,26 @@ def create_openskill_tables():
         # Initialize OpenSkill ratings for existing users
         print("🔄 Initializing OpenSkill ratings for existing users...")
         
-        cursor.execute("""
-            INSERT OR IGNORE INTO openskill_ratings (guild_id, user_id, mu, sigma, games_played, created_at, last_updated)
-            SELECT guild_id, user_id, 25.0, 8.333, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-            FROM users
-            WHERE is_deleted = 0 OR is_deleted IS NULL
-        """)
+        # Check if is_deleted column exists
+        cursor.execute("PRAGMA table_info(users)")
+        columns = [row[1] for row in cursor.fetchall()]
+        has_is_deleted = 'is_deleted' in columns
+        
+        if has_is_deleted:
+            # Use is_deleted filter if column exists
+            cursor.execute("""
+                INSERT OR IGNORE INTO openskill_ratings (guild_id, user_id, mu, sigma, games_played, created_at, last_updated)
+                SELECT guild_id, user_id, 25.0, 8.333, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                FROM users
+                WHERE is_deleted = 0 OR is_deleted IS NULL
+            """)
+        else:
+            # No is_deleted column, initialize all users
+            cursor.execute("""
+                INSERT OR IGNORE INTO openskill_ratings (guild_id, user_id, mu, sigma, games_played, created_at, last_updated)
+                SELECT guild_id, user_id, 25.0, 8.333, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                FROM users
+            """)
         
         initialized_users = cursor.rowcount
         print(f"   ✅ Initialized OpenSkill ratings for {initialized_users} users")
