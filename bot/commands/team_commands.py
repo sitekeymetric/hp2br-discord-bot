@@ -28,14 +28,26 @@ class TeamCommands(commands.Cog):
     @app_commands.describe(
         np="New Partners mode - prioritize players who haven't played together often",
         region="Require a player from this region in each team (CA, TX, NY, KR, NA, EU)",
-        format="Custom team sizes (e.g., '3:3:4' for teams of 3, 3, and 4 players)"
+        format="Custom team sizes (e.g., '3:3:4' for teams of 3, 3, and 4 players)",
+        rating_system="Rating system for team balancing (default: traditional)"
     )
+    @app_commands.choices(rating_system=[
+        app_commands.Choice(name="Traditional (Placement-based)", value="traditional"),
+        app_commands.Choice(name="OpenSkill (Team-based) - Beta", value="openskill")
+    ])
     async def create_teams(self, interaction: discord.Interaction, 
                           np: Optional[bool] = False, 
                           region: Optional[str] = None,
-                          format: Optional[str] = None):
+                          format: Optional[str] = None,
+                          rating_system: Optional[str] = "traditional"):
         """Main team balancing functionality with special cases for small player counts and region requirements"""
         await interaction.response.defer()
+        
+        # Validate rating_system parameter
+        if rating_system not in ["traditional", "openskill"]:
+            rating_system = "traditional"
+        
+        use_openskill = (rating_system == "openskill")
         
         try:
             # Validate region parameter if provided
@@ -219,7 +231,7 @@ class TeamCommands(commands.Cog):
             if region:
                 # Get user data to check regions
                 players_with_ratings = await team_balancer._get_player_ratings(
-                    waiting_members, interaction.guild.id
+                    waiting_members, interaction.guild.id, use_openskill
                 )
                 
                 # Count players from the required region
@@ -249,12 +261,12 @@ class TeamCommands(commands.Cog):
             if custom_team_sizes:
                 # Use custom format
                 teams, team_ratings, balance_score = await team_balancer.create_teams_with_custom_sizes(
-                    waiting_members, custom_team_sizes, interaction.guild.id, required_region=region
+                    waiting_members, custom_team_sizes, interaction.guild.id, required_region=region, use_openskill=use_openskill
                 )
             else:
                 # Use standard balancing with optional NP mode
                 teams, team_ratings, balance_score = await team_balancer.create_balanced_teams(
-                    waiting_members, actual_num_teams, interaction.guild.id, required_region=region, np_mode=np
+                    waiting_members, actual_num_teams, interaction.guild.id, required_region=region, np_mode=np, use_openskill=use_openskill
                 )
             
             # Validate teams
@@ -315,7 +327,7 @@ class TeamCommands(commands.Cog):
                     )
             
             # Create team proposal embed
-            embed = EmbedTemplates.team_proposal_embed(teams, team_ratings, balance_score)
+            embed = EmbedTemplates.team_proposal_embed(teams, team_ratings, balance_score, region_requirement=region, rating_system=rating_system)
             
             # Add special case message if applicable
             if special_case_msg:

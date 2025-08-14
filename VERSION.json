@@ -1,8 +1,8 @@
 {
   "major": 2,
-  "minor": 21,
-  "patch": 0,
+  "minor": 23,
+  "patch": 1,
   "build": 1,
-  "last_updated": "2025-08-14T12:16:25.798261",
-  "description": "Added rating system choice to /leaderboard command - users can now choose between traditional (default) and OpenSkill (beta) leaderboards"
+  "last_updated": "2025-08-14T12:41:29.212190",
+  "description": "Updated team composition leaderboard to show top 5 results instead of top 3, and added explanation for why most 3+ player teams have only 1 win each"
 }

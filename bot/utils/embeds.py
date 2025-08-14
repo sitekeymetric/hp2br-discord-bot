@@ -156,17 +156,25 @@ class EmbedTemplates:
         return embed
     
     @staticmethod
-    def team_proposal_embed(teams: List[List[Dict]], team_ratings: List[float], balance_score: float = 0.0, region_requirement: str = None) -> discord.Embed:
-        """Team proposal with ratings and balance info, optionally showing region requirement"""
+    def team_proposal_embed(teams: List[List[Dict]], team_ratings: List[float], balance_score: float = 0.0, region_requirement: str = None, rating_system: str = "traditional") -> discord.Embed:
+        """Team proposal with ratings and balance info, optionally showing region requirement and rating system"""
+        # Determine rating system display info
+        rating_info = {
+            "traditional": {"emoji": "🎯", "name": "Traditional (Placement-based)"},
+            "openskill": {"emoji": "🧪", "name": "OpenSkill (Team-based) - Beta"}
+        }
+        
+        rating_display = rating_info.get(rating_system, rating_info["traditional"])
+        
         # Adjust title and description for single team
         if len(teams) == 1:
             title = "🎮 Single Team Setup"
-            description = "All players will be on the same team:"
+            description = f"All players will be on the same team:\n{rating_display['emoji']} **Rating System:** {rating_display['name']}"
             if region_requirement:
                 description += f"\n🌍 **Region Requirement:** {region_requirement}"
         else:
             title = "🎮 Team Proposal"
-            description = "Here are the balanced teams:"
+            description = f"Here are the balanced teams:\n{rating_display['emoji']} **Rating System:** {rating_display['name']}"
             if region_requirement:
                 description += f"\n🌍 **Region Requirement:** Each team has at least one {region_requirement} player"
             
@@ -657,4 +665,77 @@ class EmbedTemplates:
             color=Config.WARNING_COLOR
         )
         embed.set_footer(text=get_bot_footer_text())
+        return embed
+    @staticmethod
+    def team_composition_leaderboard_embed(composition_stats: Dict, guild_name: str) -> discord.Embed:
+        """Team composition statistics leaderboard"""
+        embed = discord.Embed(
+            title=f"🏆 {guild_name} Team Composition Leaderboard",
+            description=f"Most successful team combinations from {composition_stats.get('total_matches', 0)} completed matches",
+            color=Config.EMBED_COLOR
+        )
+        
+        # Top Partnerships (2-player)
+        partnerships = composition_stats.get('top_partnerships', [])
+        if partnerships:
+            partnership_text = []
+            for i, partnership in enumerate(partnerships, 1):
+                wins = partnership['wins']
+                names = partnership['partnership']
+                partnership_text.append(f"{i}. **{names}** - {wins} wins")
+            
+            embed.add_field(
+                name="👥 Top 5 Partnerships (2-Player)",
+                value="\n".join(partnership_text) if partnership_text else "No data available",
+                inline=False
+            )
+        
+        # Top Trios (3-player)
+        trios = composition_stats.get('top_trios', [])
+        if trios:
+            trio_text = []
+            for i, trio in enumerate(trios, 1):
+                wins = trio['wins']
+                names = trio['composition']
+                # Truncate long names for display
+                if len(names) > 45:
+                    names = names[:42] + "..."
+                trio_text.append(f"{i}. **{names}** - {wins} wins")
+            
+            embed.add_field(
+                name="🔺 Top 5 Trios (3-Player)",
+                value="\n".join(trio_text) if trio_text else "No data available",
+                inline=False
+            )
+        
+        # Top Squads (4-player)
+        squads = composition_stats.get('top_squads', [])
+        if squads:
+            squad_text = []
+            for i, squad in enumerate(squads, 1):
+                wins = squad['wins']
+                names = squad['composition']
+                # Truncate long names for display
+                if len(names) > 45:
+                    names = names[:42] + "..."
+                squad_text.append(f"{i}. **{names}** - {wins} wins")
+            
+            embed.add_field(
+                name="🔷 Top 5 Squads (4-Player)",
+                value="\n".join(squad_text) if squad_text else "No data available",
+                inline=False
+            )
+        
+        # Add explanation about the data patterns
+        embed.add_field(
+            name="📊 Why Most Teams Have 1 Win?",
+            value="• **Team Variety**: Different players join each match\n"
+                  "• **Balanced Matchmaking**: System creates varied compositions\n"
+                  "• **Player Availability**: Not everyone plays every match\n"
+                  "• **Partnerships**: 2-player combos appear more frequently",
+            inline=False
+        )
+        
+        embed.set_footer(text=get_bot_footer_text())
+        
         return embed

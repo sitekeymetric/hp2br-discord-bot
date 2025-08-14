@@ -41,6 +41,10 @@ app.include_router(advanced_matches.router)
 from routes import openskill_routes
 app.include_router(openskill_routes.router)
 
+# Team Composition Analysis
+from routes import team_composition_routes
+app.include_router(team_composition_routes.router)
+
 @app.get("/")
 def root():
     return {

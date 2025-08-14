@@ -214,7 +214,7 @@ async def help_command(interaction: discord.Interaction):
     
     embed.add_field(
         name="🎯 Team Commands",
-        value="• `/create_teams [np] [region]` - Create balanced teams\n"
+        value="• `/create_teams [np] [region] [format] [rating_system]` - Create balanced teams (traditional/openskill)\n"
               "• `/record_result` - Record match results (placement-based)\n"
               "• `/cancel_match` - Cancel current match\n"
               "• `/update_team` - Update team memberships based on voice channels (available to all)\n"

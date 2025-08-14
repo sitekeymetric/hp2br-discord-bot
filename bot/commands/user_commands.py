@@ -333,7 +333,8 @@ class UserCommands(commands.Cog):
     )
     @app_commands.choices(rating_system=[
         app_commands.Choice(name="Traditional (Placement-based)", value="traditional"),
-        app_commands.Choice(name="OpenSkill (Team-based) - Beta", value="openskill")
+        app_commands.Choice(name="OpenSkill (Team-based) - Beta", value="openskill"),
+        app_commands.Choice(name="Team Compositions (Winning combos)", value="compositions")
     ])
     async def leaderboard(self, interaction: discord.Interaction, 
                          limit: Optional[int] = 10,
@@ -345,34 +346,65 @@ class UserCommands(commands.Cog):
         limit = max(1, min(limit, 25))
         
         # Validate rating system
-        if rating_system not in ["traditional", "openskill"]:
+        if rating_system not in ["traditional", "openskill", "compositions"]:
             rating_system = "traditional"
         
         try:
-            # Auto-register any players currently in waiting room
-            waiting_members = await self.voice_manager.get_waiting_room_members(interaction.guild)
-            
-            if waiting_members:
-                logger.info(f"Scanning {len(waiting_members)} waiting room members for auto-registration")
-                for member in waiting_members:
-                    try:
-                        # Check if already registered
-                        existing_user = await api_client.get_user(interaction.guild.id, member.id)
-                        if not existing_user:
-                            # Auto-register new player
-                            logger.info(f"Auto-registering {member.display_name} from waiting room for /leaderboard")
-                            await api_client.auto_register_user(
-                                guild_id=interaction.guild.id,
-                                user_id=member.id,
-                                username=member.display_name
-                            )
-                        else:
-                            # Sync username for existing user
-                            await self._sync_username_if_needed(interaction.guild.id, member, existing_user)
-                    except Exception as e:
-                        logger.error(f"Error processing {member.display_name}: {e}")
-            
-            if rating_system == "openskill":
+            if rating_system == "compositions":
+                # Get team composition statistics
+                try:
+                    composition_stats = await api_client.get_team_composition_stats(interaction.guild.id)
+                    
+                    if not composition_stats or composition_stats.get('total_matches', 0) == 0:
+                        embed = EmbedTemplates.warning_embed(
+                            "No Team Composition Data",
+                            "No completed matches found for team composition analysis!\n\n"
+                            "Team compositions are tracked from completed matches.\n"
+                            "Try using `/leaderboard traditional` to see individual ratings."
+                        )
+                        await interaction.followup.send(embed=embed)
+                        return
+                    
+                    # Create team composition leaderboard embed
+                    embed = EmbedTemplates.team_composition_leaderboard_embed(
+                        composition_stats=composition_stats,
+                        guild_name=interaction.guild.name
+                    )
+                    
+                except Exception as e:
+                    logger.error(f"Error getting team composition stats: {e}")
+                    embed = EmbedTemplates.error_embed(
+                        "Team Composition Error",
+                        "Failed to retrieve team composition statistics. Try using traditional rating system."
+                    )
+                    await interaction.followup.send(embed=embed, ephemeral=True)
+                    return
+                    
+            elif rating_system == "openskill":
+                # Auto-register any players currently in waiting room
+                waiting_members = await self.voice_manager.get_waiting_room_members(interaction.guild)
+                
+                if waiting_members:
+                    logger.info(f"Scanning {len(waiting_members)} waiting room members for auto-registration")
+                    for member in waiting_members:
+                        try:
+                            # Check if already registered
+                            existing_user = await api_client.get_user(interaction.guild.id, member.id)
+                            if not existing_user:
+                                # Auto-register new player
+                                logger.info(f"Auto-registering {member.display_name} from waiting room for /leaderboard")
+                                await api_client.auto_register_user(
+                                    guild_id=interaction.guild.id,
+                                    user_id=member.id,
+                                    username=member.display_name
+                                )
+                            else:
+                                # Sync username for existing user
+                                await self._sync_username_if_needed(interaction.guild.id, member, existing_user)
+                        except Exception as e:
+                            logger.error(f"Error processing {member.display_name}: {e}")
+                
+                # Get OpenSkill leaderboard
                 # Get OpenSkill leaderboard
                 try:
                     openskill_users = await api_client.get_openskill_leaderboard(interaction.guild.id, limit)
@@ -433,6 +465,29 @@ class UserCommands(commands.Cog):
                     return
             else:
                 # Traditional leaderboard (existing logic)
+                # Auto-register any players currently in waiting room
+                waiting_members = await self.voice_manager.get_waiting_room_members(interaction.guild)
+                
+                if waiting_members:
+                    logger.info(f"Scanning {len(waiting_members)} waiting room members for auto-registration")
+                    for member in waiting_members:
+                        try:
+                            # Check if already registered
+                            existing_user = await api_client.get_user(interaction.guild.id, member.id)
+                            if not existing_user:
+                                # Auto-register new player
+                                logger.info(f"Auto-registering {member.display_name} from waiting room for /leaderboard")
+                                await api_client.auto_register_user(
+                                    guild_id=interaction.guild.id,
+                                    user_id=member.id,
+                                    username=member.display_name
+                                )
+                            else:
+                                # Sync username for existing user
+                                await self._sync_username_if_needed(interaction.guild.id, member, existing_user)
+                        except Exception as e:
+                            logger.error(f"Error processing {member.display_name}: {e}")
+                
                 # Get users with completed match statistics (includes users with 0 completed matches)
                 users = await api_client.get_guild_users_completed_stats(interaction.guild.id)
                 

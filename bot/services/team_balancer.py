@@ -18,12 +18,12 @@ class TeamBalancer:
         random.seed(seed_value)
         logger.info(f"TeamBalancer initialized with random seed: {seed_value}")
     
-    async def create_teams_with_custom_sizes(self, members: List[discord.Member], team_sizes: List[int], guild_id: int, required_region: str = None) -> Tuple[List[List[Dict]], List[float], float]:
+    async def create_teams_with_custom_sizes(self, members: List[discord.Member], team_sizes: List[int], guild_id: int, required_region: str = None, use_openskill: bool = False) -> Tuple[List[List[Dict]], List[float], float]:
         """
         Create teams with custom specified sizes (e.g., [3, 3, 4] for 3:3:4 format)
         """
         # Get player ratings
-        players_with_ratings = await self._get_player_ratings(members, guild_id)
+        players_with_ratings = await self._get_player_ratings(members, guild_id, use_openskill)
         
         # Validate total players match team sizes
         total_required = sum(team_sizes)
@@ -189,7 +189,7 @@ class TeamBalancer:
                     team_index = 0
                     direction = 1
     
-    async def create_balanced_teams(self, members: List[discord.Member], num_teams: int, guild_id: int, required_region: str = None, np_mode: bool = False) -> Tuple[List[List[Dict]], List[float], float]:
+    async def create_balanced_teams(self, members: List[discord.Member], num_teams: int, guild_id: int, required_region: str = None, np_mode: bool = False, use_openskill: bool = False) -> Tuple[List[List[Dict]], List[float], float]:
         """
         Main balancing algorithm with special cases for small player counts and region requirements
         Returns: (teams_with_data, team_ratings, balance_score)
@@ -201,7 +201,7 @@ class TeamBalancer:
             raise ValueError(f"Too many players (max {Config.MAX_PLAYERS_PER_MATCH})")
         
         # Get user ratings from database (auto-register if needed)
-        players_with_ratings = await self._get_player_ratings(members, guild_id)
+        players_with_ratings = await self._get_player_ratings(members, guild_id, use_openskill)
         
         # Handle special cases for small player counts
         if len(members) <= Config.SINGLE_TEAM_THRESHOLD:
@@ -247,12 +247,45 @@ class TeamBalancer:
         
         return teams, team_ratings, balance_score
     
-    async def _get_player_ratings(self, members: List[discord.Member], guild_id: int) -> List[Dict]:
+    async def _get_player_ratings(self, members: List[discord.Member], guild_id: int, use_openskill: bool = False) -> List[Dict]:
         """Get player ratings from database, auto-registering if needed"""
         players_with_ratings = []
         
         for member in members:
             try:
+                if use_openskill:
+                    # Get OpenSkill rating
+                    openskill_data = None
+                    try:
+                        openskill_data = await api_client.get_openskill_rating(guild_id, member.id)
+                    except Exception as e:
+                        logger.debug(f"OpenSkill data not available for {member.display_name}: {e}")
+                    
+                    if openskill_data and openskill_data.get('games_played', 0) > 0:
+                        # Use OpenSkill rating
+                        user_data = {
+                            'guild_id': guild_id,
+                            'user_id': member.id,
+                            'username': member.display_name,
+                            'region_code': None,  # Not tracked in OpenSkill
+                            'rating_mu': openskill_data['display_rating'],  # Use display rating as mu
+                            'rating_sigma': openskill_data['sigma'] * 60,  # Scale sigma to match display rating scale
+                            'games_played': openskill_data['games_played'],
+                            'wins': 0,  # Not tracked in OpenSkill
+                            'losses': 0,  # Not tracked in OpenSkill
+                            'draws': 0,  # Not tracked in OpenSkill
+                            'created_at': None,
+                            'last_updated': openskill_data['last_updated'],
+                            'discord_member': member,
+                            'rating_source': 'openskill'
+                        }
+                        players_with_ratings.append(user_data)
+                        continue
+                    else:
+                        # Fall back to traditional rating if no OpenSkill data
+                        logger.info(f"No OpenSkill data for {member.display_name}, falling back to traditional rating")
+                
+                # Get traditional rating (default behavior)
                 # Try to get existing user with completed match statistics
                 user_data = await api_client.get_user_completed_stats(guild_id, member.id)
                 
@@ -283,8 +316,9 @@ class TeamBalancer:
                         }
                 
                 if user_data:
-                    # Add Discord member reference for easier access
+                    # Add Discord member reference and rating source
                     user_data['discord_member'] = member
+                    user_data['rating_source'] = 'openskill' if use_openskill else 'traditional'
                     players_with_ratings.append(user_data)
                 else:
                     # Fallback: create default data
@@ -295,7 +329,8 @@ class TeamBalancer:
                         'rating_mu': Config.DEFAULT_RATING_MU,
                         'rating_sigma': Config.DEFAULT_RATING_SIGMA,
                         'games_played': 0,
-                        'discord_member': member
+                        'discord_member': member,
+                        'rating_source': 'default'
                     })
                     
             except Exception as e:

@@ -3,6 +3,39 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v2.23.1-build.1 - 2025-08-14
+
+### Changes
+- Updated team composition leaderboard to show top 5 results instead of top 3, and added explanation for why most 3+ player teams have only 1 win each
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-14T12:41:29.212190
+
+---
+
+## v2.23.0-build.1 - 2025-08-14
+
+### Changes
+- Added team composition leaderboard to /leaderboard command - shows most successful 2-player, 3-player, and 4-player winning combinations from match history
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-14T12:38:02.840855
+
+---
+
+## v2.22.0-build.1 - 2025-08-14
+
+### Changes
+- Added rating system choice to /create_teams command - users can now create teams using traditional (default) or OpenSkill (beta) ratings for balancing
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-14T12:30:28.442832
+
+---
+
 ## v2.21.0-build.1 - 2025-08-14
 
 ### Changes
