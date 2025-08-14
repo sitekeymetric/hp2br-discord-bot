@@ -1,8 +1,8 @@
 {
   "major": 2,
   "minor": 16,
-  "patch": 3,
+  "patch": 4,
   "build": 1,
-  "last_updated": "2025-08-14T00:00:00.000000",
-  "description": "Added /update_team command to synchronize team memberships with current voice channels during active matches (requires manage_channels permission)"
+  "last_updated": "2025-08-14T00:05:00.000000",
+  "description": "Removed /ping and /teammates commands to clean up command list and reduce clutter"
 }

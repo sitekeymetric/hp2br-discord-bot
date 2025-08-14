@@ -190,16 +190,6 @@ async def on_application_command_error(interaction, error):
             ephemeral=True
         )
 
-@bot.tree.command(name="ping", description="Test if the bot is responsive")
-async def ping(interaction: discord.Interaction):
-    """Simple ping command for testing"""
-    latency = round(bot.latency * 1000)
-    embed = discord.Embed(
-        title="🏓 Pong!",
-        description=f"Bot latency: {latency}ms",
-        color=Config.SUCCESS_COLOR
-    )
-    await interaction.response.send_message(embed=embed)
 
 @bot.tree.command(name="help", description="Show all available commands")
 async def help_command(interaction: discord.Interaction):
@@ -218,7 +208,6 @@ async def help_command(interaction: discord.Interaction):
               "• `/leaderboard [limit]` - Show top players\n"
               "• `/delete_account` - Delete your account\n"
               "• `/match_history [@user]` - View match history\n"
-              "• `/teammates [@user]` - View teammate statistics\n"
               "• `/rating_scale` - View placement-based rating scale",
         inline=False
     )
@@ -334,7 +323,6 @@ async def getting_started(interaction: discord.Interaction):
     embed.add_field(
         name="❓ Need More Help?",
         value="• Use `/help` for all available commands\n"
-              "• Use `/ping` to test if the bot is working\n"
               "• Ask an admin to run `/setup` if voice channels are missing",
         inline=False
     )
