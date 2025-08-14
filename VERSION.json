@@ -1,8 +1,8 @@
 {
   "major": 2,
   "minor": 18,
-  "patch": 2,
+  "patch": 3,
   "build": 1,
-  "last_updated": "2025-08-14T11:51:04.693555",
-  "description": "Added automated pending matches cleanup system - cleaned up 6 old pending matches, created maintenance scripts"
+  "last_updated": "2025-08-14T11:58:25.645772",
+  "description": "Made /update_team command available to all users (removed admin-only restriction) and added it to help command"
 }

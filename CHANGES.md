@@ -3,6 +3,17 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v2.18.3-build.1 - 2025-08-14
+
+### Changes
+- Made /update_team command available to all users (removed admin-only restriction) and added it to help command
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-14T11:58:25.645772
+
+---
+
 ## v2.18.2-build.1 - 2025-08-14
 
 ### Changes

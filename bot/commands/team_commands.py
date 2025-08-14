@@ -553,7 +553,6 @@ class TeamCommands(commands.Cog):
             await interaction.followup.send(embed=embed, ephemeral=True)
     
     @app_commands.command(name="update_team", description="Update team memberships based on current voice channels")
-    @app_commands.default_permissions(manage_channels=True)
     async def update_team(self, interaction: discord.Interaction):
         """Update team memberships to match current voice channel occupancy"""
         await interaction.response.defer()

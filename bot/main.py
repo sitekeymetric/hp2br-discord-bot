@@ -217,6 +217,7 @@ async def help_command(interaction: discord.Interaction):
         value="• `/create_teams [np] [region]` - Create balanced teams\n"
               "• `/record_result` - Record match results (placement-based)\n"
               "• `/cancel_match` - Cancel current match\n"
+              "• `/update_team` - Update team memberships based on voice channels (available to all)\n"
               "• `/cleanup` - Clean up team channels (available to all)",
         inline=False
     )
