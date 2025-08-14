@@ -105,8 +105,8 @@ python3 setup_openskill.py
 
 ### **Manual Setup**
 ```bash
-# 1. Install OpenSkill
-cd api && pip install openskill==5.0.0
+# 1. Install OpenSkill (latest version)
+cd api && pip install openskill==6.1.3
 
 # 2. Create database tables
 cd api && python3 migrations/create_openskill_tables.py

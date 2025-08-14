@@ -3,6 +3,28 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v2.18.0-build.1 - 2025-08-14
+
+### Changes
+- Upgraded to OpenSkill 6.1.3 with enhanced features: match prediction, team balance scoring, and improved performance
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-14T11:35:49.721800
+
+---
+
+## v2.17.3-build.1 - 2025-08-14
+
+### Changes
+- Fixed OpenSkill service to use correct OpenSkill 5.0.0 API (PlackettLuce model instead of Environment)
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-14T11:30:59.258950
+
+---
+
 ## v2.17.2-build.1 - 2025-08-14
 
 ### Changes

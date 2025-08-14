@@ -6,4 +6,4 @@ python-multipart==0.0.6
 pytest==7.4.3
 httpx==0.25.2
 python-dotenv==1.0.0
-openskill==5.0.0
+openskill==6.1.3

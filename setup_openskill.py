@@ -43,12 +43,12 @@ def main():
     
     # Step 1: Install OpenSkill
     success = run_command(
-        "cd api && pip install openskill==5.0.0",
+        "cd api && pip install openskill==6.1.3",
         "Installing OpenSkill dependency"
     )
     if not success:
         print("❌ Failed to install OpenSkill. Please install manually:")
-        print("   cd api && pip install openskill==5.0.0")
+        print("   cd api && pip install openskill==6.1.3")
         sys.exit(1)
     
     # Step 2: Create database tables

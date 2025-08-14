@@ -5,7 +5,7 @@ Handles multi-team competitions including external opponents
 """
 
 from typing import List, Dict, Tuple, Optional
-import openskill
+from openskill.models import PlackettLuce, PlackettLuceRating
 from dataclasses import dataclass
 import logging
 import math
@@ -40,18 +40,11 @@ class OpenSkillService:
     # OpenSkill default parameters
     DEFAULT_MU = 25.0
     DEFAULT_SIGMA = 8.333
-    DEFAULT_BETA = 4.167  # Half of sigma
-    DEFAULT_TAU = 0.083   # Dynamics factor
     
     def __init__(self):
-        """Initialize OpenSkill environment"""
-        # Configure OpenSkill environment
-        self.env = openskill.Environment(
-            mu=self.DEFAULT_MU,
-            sigma=self.DEFAULT_SIGMA,
-            beta=self.DEFAULT_BETA,
-            tau=self.DEFAULT_TAU
-        )
+        """Initialize OpenSkill model"""
+        # Use PlackettLuce model which is good for multi-team competitions
+        self.model = PlackettLuce(mu=self.DEFAULT_MU, sigma=self.DEFAULT_SIGMA)
     
     def create_rating(self, mu: float = None, sigma: float = None) -> OpenSkillRating:
         """Create a new OpenSkill rating"""
@@ -61,6 +54,14 @@ class OpenSkillService:
             sigma = self.DEFAULT_SIGMA
         
         return OpenSkillRating(mu=mu, sigma=sigma)
+    
+    def _to_openskill_rating(self, rating: OpenSkillRating) -> PlackettLuceRating:
+        """Convert our rating to OpenSkill library rating"""
+        return PlackettLuceRating(mu=rating.mu, sigma=rating.sigma)
+    
+    def _from_openskill_rating(self, rating: PlackettLuceRating) -> OpenSkillRating:
+        """Convert OpenSkill library rating to our rating"""
+        return OpenSkillRating(mu=rating.mu, sigma=rating.sigma)
     
     def detect_competition_type(self, team_placements: Dict[int, int]) -> Tuple[str, int, int, int]:
         """
@@ -149,7 +150,7 @@ class OpenSkillService:
             
             # Prepare all teams for OpenSkill calculation
             all_teams = []
-            all_placements = []
+            all_ranks = []
             guild_team_indices = {}  # Track which indices are guild teams
             
             # Add guild teams
@@ -161,11 +162,11 @@ class OpenSkillService:
                 # Convert to OpenSkill Rating objects
                 openskill_team = []
                 for player_rating in players:
-                    rating = self.env.rating(mu=player_rating.mu, sigma=player_rating.sigma)
+                    rating = self._to_openskill_rating(player_rating)
                     openskill_team.append(rating)
                 
                 all_teams.append(openskill_team)
-                all_placements.append(placement)
+                all_ranks.append(placement)
                 guild_team_indices[len(all_teams) - 1] = team_num
                 guild_index += 1
             
@@ -178,24 +179,21 @@ class OpenSkillService:
                         # This placement belongs to an external team
                         external_team = []
                         for _ in range(4):  # Assume 4 players per external team
-                            rating = self.env.rating(mu=external_team_strength.mu, sigma=external_team_strength.sigma)
+                            rating = self._to_openskill_rating(external_team_strength)
                             external_team.append(rating)
                         
                         all_teams.append(external_team)
-                        all_placements.append(placement)
+                        all_ranks.append(placement)
             
             # Calculate new ratings using OpenSkill
-            updated_teams = self.env.rate(all_teams, ranks=all_placements)
+            updated_teams = self.model.rate(all_teams, ranks=all_ranks)
             
             # Extract only guild team updates
             updated_guild_teams = {}
             for team_index, guild_team_num in guild_team_indices.items():
                 updated_team = []
                 for player_rating in updated_teams[team_index]:
-                    updated_rating = OpenSkillRating(
-                        mu=player_rating.mu,
-                        sigma=player_rating.sigma
-                    )
+                    updated_rating = self._from_openskill_rating(player_rating)
                     updated_team.append(updated_rating)
                 updated_guild_teams[guild_team_num] = updated_team
             
@@ -298,15 +296,74 @@ class OpenSkillService:
             Float between 0 and 1 (0.5 = equal skill)
         """
         try:
-            r1 = self.env.rating(mu=rating1.mu, sigma=rating1.sigma)
-            r2 = self.env.rating(mu=rating2.mu, sigma=rating2.sigma)
+            r1 = self._to_openskill_rating(rating1)
+            r2 = self._to_openskill_rating(rating2)
             
-            # Use OpenSkill's predict_win function
-            return openskill.predict_win([[r1], [r2]])[0]
+            # Use model's predict_win function for 1v1 comparison (6.1.3 feature)
+            teams = [[r1], [r2]]
+            probabilities = self.model.predict_win(teams)
+            return probabilities[0]
             
         except Exception as e:
             logger.error(f"Error comparing players: {e}")
             return 0.5  # Default to equal skill
+    
+    def predict_match_outcome(self, teams: List[List[OpenSkillRating]]) -> List[float]:
+        """
+        Predict win probabilities for each team in a match
+        
+        Args:
+            teams: List of teams, each team is a list of player ratings
+            
+        Returns:
+            List of win probabilities for each team
+        """
+        try:
+            # Convert to OpenSkill ratings
+            openskill_teams = []
+            for team in teams:
+                openskill_team = []
+                for player_rating in team:
+                    rating = self._to_openskill_rating(player_rating)
+                    openskill_team.append(rating)
+                openskill_teams.append(openskill_team)
+            
+            # Use predict_win to get probabilities
+            probabilities = self.model.predict_win(openskill_teams)
+            return probabilities
+            
+        except Exception as e:
+            logger.error(f"Error predicting match outcome: {e}")
+            # Return equal probabilities as fallback
+            return [1.0 / len(teams)] * len(teams)
+    
+    def calculate_team_balance_score(self, teams: List[List[OpenSkillRating]]) -> float:
+        """
+        Calculate how balanced the teams are (lower = more balanced)
+        
+        Args:
+            teams: List of teams, each team is a list of player ratings
+            
+        Returns:
+            Balance score (0 = perfectly balanced)
+        """
+        try:
+            # Get win probabilities
+            probabilities = self.predict_match_outcome(teams)
+            
+            # Calculate variance in win probabilities
+            # Perfectly balanced teams would have equal probabilities
+            expected_prob = 1.0 / len(teams)
+            variance = sum((p - expected_prob) ** 2 for p in probabilities)
+            
+            # Scale to a more intuitive range (0-100)
+            balance_score = variance * 100 * len(teams)
+            
+            return balance_score
+            
+        except Exception as e:
+            logger.error(f"Error calculating team balance: {e}")
+            return 50.0  # Default moderate balance score
     
     def get_team_strength(self, team_ratings: List[OpenSkillRating]) -> OpenSkillRating:
         """

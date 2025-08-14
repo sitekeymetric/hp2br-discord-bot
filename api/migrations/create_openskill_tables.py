@@ -166,7 +166,7 @@ if __name__ == "__main__":
     
     if success:
         print("\n🎉 Tables created successfully! Next steps:")
-        print("1. Install OpenSkill: pip install openskill==5.0.0")
+        print("1. Install OpenSkill: pip install openskill==6.1.3")
         print("2. Run historical rating calculation")
         print("3. Test with new matches")
     else:
