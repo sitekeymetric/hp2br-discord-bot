@@ -20,6 +20,64 @@ class UserCommands(commands.Cog):
         self.bot = bot
         self.voice_manager = VoiceManager(bot)
     
+    async def _sync_username_if_needed(self, guild_id: int, user: discord.Member, user_data: dict) -> dict:
+        """
+        Check if username needs updating and sync it if different
+        Returns updated user_data if changed, original if unchanged
+        """
+        current_username = user.display_name
+        stored_username = user_data.get('username', '')
+        
+        if current_username != stored_username:
+            logger.info(f"Username sync needed for {user.id}: '{stored_username}' -> '{current_username}'")
+            try:
+                updated_data = await api_client.update_user(
+                    guild_id=guild_id,
+                    user_id=user.id,
+                    username=current_username
+                )
+                if updated_data:
+                    logger.info(f"Successfully synced username for {user.id}")
+                    return updated_data
+                else:
+                    logger.warning(f"Failed to sync username for {user.id}")
+            except Exception as e:
+                logger.error(f"Error syncing username for {user.id}: {e}")
+        
+        return user_data
+    
+    async def _sync_multiple_usernames(self, guild: discord.Guild, users_data: list) -> list:
+        """
+        Sync usernames for multiple users in bulk
+        Returns updated users_data list
+        """
+        updated_users = []
+        sync_count = 0
+        
+        for user_data in users_data:
+            user_id = user_data.get('user_id')
+            if not user_id:
+                updated_users.append(user_data)
+                continue
+                
+            # Find the Discord member
+            member = guild.get_member(user_id)
+            if not member:
+                # User not in guild anymore, keep original data
+                updated_users.append(user_data)
+                continue
+            
+            # Sync username if needed
+            updated_data = await self._sync_username_if_needed(guild.id, member, user_data)
+            if updated_data != user_data:
+                sync_count += 1
+            updated_users.append(updated_data)
+        
+        if sync_count > 0:
+            logger.info(f"Synced usernames for {sync_count} users in guild {guild.name}")
+        
+        return updated_users
+    
     @app_commands.command(name="register", description="Register yourself in the team balance system")
     @app_commands.describe(region="Your region (CA, TX, NY, KR, NA, EU)")
     async def register(self, interaction: discord.Interaction, region: Optional[str] = None):
@@ -85,7 +143,7 @@ class UserCommands(commands.Cog):
             )
             await interaction.followup.send(embed=embed, ephemeral=True)
     
-    @app_commands.command(name="stats", description="Show player statistics (includes OpenSkill beta rating)")
+    @app_commands.command(name="stats", description="Show player statistics (auto-syncs username, includes OpenSkill beta)")
     @app_commands.describe(user="The user to show stats for (defaults to yourself)")
     async def stats(self, interaction: discord.Interaction, user: Optional[discord.Member] = None):
         """Display user statistics based only on COMPLETED matches"""
@@ -144,6 +202,9 @@ class UserCommands(commands.Cog):
                         )
                     await interaction.followup.send(embed=embed)
                     return
+            else:
+                # Sync username if user exists and name has changed
+                user_data = await self._sync_username_if_needed(interaction.guild.id, target_user, user_data)
             
             # Get teammate statistics (top 5 for each category)
             teammate_stats = await api_client.get_user_teammate_stats(
@@ -265,7 +326,7 @@ class UserCommands(commands.Cog):
             )
             await interaction.followup.send(embed=embed, ephemeral=True)
     
-    @app_commands.command(name="leaderboard", description="Show guild leaderboard (all registered players)")
+    @app_commands.command(name="leaderboard", description="Show guild leaderboard (auto-syncs usernames)")
     @app_commands.describe(limit="Number of players to show (default: 10, max: 25)")
     async def leaderboard(self, interaction: discord.Interaction, limit: Optional[int] = 10):
         """Display top players in the guild - shows all registered users"""
@@ -292,8 +353,11 @@ class UserCommands(commands.Cog):
                                 user_id=member.id,
                                 username=member.display_name
                             )
+                        else:
+                            # Sync username for existing user
+                            await self._sync_username_if_needed(interaction.guild.id, member, existing_user)
                     except Exception as e:
-                        logger.error(f"Error auto-registering {member.display_name}: {e}")
+                        logger.error(f"Error processing {member.display_name}: {e}")
             
             # Get users with completed match statistics (includes users with 0 completed matches)
             users = await api_client.get_guild_users_completed_stats(interaction.guild.id)
@@ -308,6 +372,9 @@ class UserCommands(commands.Cog):
                 )
                 await interaction.followup.send(embed=embed)
                 return
+            
+            # Sync usernames for all users in the leaderboard
+            users = await self._sync_multiple_usernames(interaction.guild, users)
             
             # Sort by rating (mu) descending, then by games played descending
             users.sort(key=lambda x: (x.get("rating_mu", 1500), x.get("games_played", 0)), reverse=True)

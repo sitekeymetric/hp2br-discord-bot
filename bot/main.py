@@ -203,9 +203,9 @@ async def help_command(interaction: discord.Interaction):
     embed.add_field(
         name="👤 User Commands",
         value="• `/register [region]` - Register in the system\n"
-              "• `/stats [@user]` - View player statistics (includes OpenSkill beta)\n"
+              "• `/stats [@user]` - View player statistics (auto-syncs username, includes OpenSkill beta)\n"
               "• `/set_region <region>` - Update your region\n"
-              "• `/leaderboard [limit]` - Show top players\n"
+              "• `/leaderboard [limit]` - Show top players (auto-syncs usernames)\n"
               "• `/delete_account` - Delete your account\n"
               "• `/match_history [@user]` - View match history\n"
               "• `/rating_scale` - View placement-based rating scale",

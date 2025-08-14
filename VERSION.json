@@ -1,8 +1,8 @@
 {
   "major": 2,
-  "minor": 19,
+  "minor": 20,
   "patch": 0,
   "build": 1,
-  "last_updated": "2025-08-14T12:00:46.497468",
-  "description": "Added OpenSkill rating as beta feature to /stats command - shows team-based skill assessment alongside placement ratings"
+  "last_updated": "2025-08-14T12:06:01.821867",
+  "description": "Added automatic username synchronization to /stats and /leaderboard commands - database now auto-updates when Discord usernames change"
 }

@@ -3,6 +3,17 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v2.20.0-build.1 - 2025-08-14
+
+### Changes
+- Added automatic username synchronization to /stats and /leaderboard commands - database now auto-updates when Discord usernames change
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-14T12:06:01.821867
+
+---
+
 ## v2.19.0-build.1 - 2025-08-14
 
 ### Changes
