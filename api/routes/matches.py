@@ -346,3 +346,27 @@ def calculate_placement_rating_change(placement: int, baseline_rank: int = 5, ma
             rating_change = -10 + (performance_score * -15)  # Scale from -10 to -25
     
     return rating_change
+
+@router.delete("/{match_id}/players/{user_id}")
+def remove_player_from_match(match_id: UUID, user_id: int, guild_id: int, db: Session = Depends(get_db)):
+    """Remove a player from a match"""
+    success = MatchService.remove_player_from_match(db, match_id, user_id, guild_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Player not found in match")
+    return {"message": "Player removed from match successfully"}
+
+@router.put("/{match_id}/players/{user_id}/team")
+def update_player_team_assignment(match_id: UUID, user_id: int, new_team_number: int, guild_id: int, db: Session = Depends(get_db)):
+    """Update a player's team assignment in a match"""
+    success = MatchService.update_player_team_assignment(db, match_id, user_id, guild_id, new_team_number)
+    if not success:
+        raise HTTPException(status_code=404, detail="Player not found in match")
+    return {"message": "Player team assignment updated successfully"}
+
+@router.get("/{match_id}/teams")
+def get_match_teams(match_id: UUID, db: Session = Depends(get_db)):
+    """Get all teams in a match organized by team number"""
+    teams = MatchService.get_match_teams(db, match_id)
+    if not teams:
+        raise HTTPException(status_code=404, detail="Match not found or has no players")
+    return teams

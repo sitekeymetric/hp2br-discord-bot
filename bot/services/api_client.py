@@ -224,6 +224,24 @@ class APIClient:
         result = await self._make_request("GET", "/advanced-matches/rating-scale")
         return result if result is not None else {}
     
+    # Team Management Operations
+    async def remove_player_from_match(self, match_id: str, user_id: int, guild_id: int) -> bool:
+        """Remove a player from a match"""
+        params = {"guild_id": guild_id}
+        result = await self._make_request("DELETE", f"/matches/{match_id}/players/{user_id}", params=params)
+        return result is not None
+    
+    async def update_player_team_assignment(self, match_id: str, user_id: int, guild_id: int, new_team_number: int) -> bool:
+        """Update a player's team assignment in a match"""
+        params = {"new_team_number": new_team_number, "guild_id": guild_id}
+        result = await self._make_request("PUT", f"/matches/{match_id}/players/{user_id}/team", params=params)
+        return result is not None
+    
+    async def get_match_teams(self, match_id: str) -> Dict:
+        """Get all teams in a match organized by team number"""
+        result = await self._make_request("GET", f"/matches/{match_id}/teams")
+        return result if result is not None else {}
+    
     async def close(self):
         """Close the HTTP session"""
         if self.session and not self.session.closed:

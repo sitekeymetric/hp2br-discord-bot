@@ -223,3 +223,60 @@ class MatchService:
             })
         
         return history
+    
+    @staticmethod
+    def remove_player_from_match(db: Session, match_id: UUID, user_id: int, guild_id: int) -> bool:
+        """Remove a player from a match"""
+        match_player = db.query(MatchPlayer).filter(
+            MatchPlayer.match_id == match_id,
+            MatchPlayer.user_id == user_id,
+            MatchPlayer.guild_id == guild_id
+        ).first()
+        
+        if not match_player:
+            return False
+        
+        db.delete(match_player)
+        db.commit()
+        return True
+    
+    @staticmethod
+    def update_player_team_assignment(db: Session, match_id: UUID, user_id: int, guild_id: int, new_team_number: int) -> bool:
+        """Update a player's team assignment in a match"""
+        match_player = db.query(MatchPlayer).filter(
+            MatchPlayer.match_id == match_id,
+            MatchPlayer.user_id == user_id,
+            MatchPlayer.guild_id == guild_id
+        ).first()
+        
+        if not match_player:
+            return False
+        
+        match_player.team_number = new_team_number
+        db.commit()
+        return True
+    
+    @staticmethod
+    def get_match_teams(db: Session, match_id: UUID) -> dict:
+        """Get all teams in a match organized by team number"""
+        match_players = db.query(MatchPlayer).filter(MatchPlayer.match_id == match_id).all()
+        
+        teams = {}
+        for player in match_players:
+            team_num = player.team_number
+            if team_num not in teams:
+                teams[team_num] = []
+            
+            # Get user info
+            user = db.query(User).filter(
+                User.guild_id == player.guild_id,
+                User.user_id == player.user_id
+            ).first()
+            
+            teams[team_num].append({
+                'user_id': player.user_id,
+                'username': user.username if user else f'User {player.user_id}',
+                'team_number': team_num
+            })
+        
+        return teams

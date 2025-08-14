@@ -536,6 +536,222 @@ class TeamCommands(commands.Cog):
                 "An error occurred during cleanup. Please try again or contact an administrator."
             )
             await interaction.followup.send(embed=embed, ephemeral=True)
+    
+    @app_commands.command(name="update_team", description="Update team memberships based on current voice channels")
+    @app_commands.default_permissions(manage_channels=True)
+    async def update_team(self, interaction: discord.Interaction):
+        """Update team memberships to match current voice channel occupancy"""
+        await interaction.response.defer()
+        
+        try:
+            # Check for active match
+            active_match = self.voice_manager.get_active_match(interaction.guild.id)
+            if not active_match:
+                embed = EmbedTemplates.warning_embed(
+                    "No Active Match",
+                    "There's no active match to update. Use `/create_teams` to start a new match."
+                )
+                await interaction.followup.send(embed=embed, ephemeral=True)
+                return
+            
+            match_id = active_match['match_id']
+            team_channels = active_match['team_channels']
+            
+            # Get current database teams
+            db_teams = await api_client.get_match_teams(match_id)
+            if not db_teams:
+                embed = EmbedTemplates.error_embed(
+                    "Database Error",
+                    "Failed to retrieve current match teams from database."
+                )
+                await interaction.followup.send(embed=embed, ephemeral=True)
+                return
+            
+            # Scan current voice channel memberships
+            current_voice_teams = {}
+            for i, channel in enumerate(team_channels, 1):
+                current_voice_teams[i] = [
+                    member for member in channel.members 
+                    if not member.bot  # Exclude bots
+                ]
+            
+            # Build sets for comparison
+            db_player_ids = set()
+            db_player_teams = {}  # player_id -> team_number
+            for team_num_str, players in db_teams.items():
+                team_num = int(team_num_str)  # Convert string key to int
+                for player in players:
+                    player_id = player['user_id']
+                    db_player_ids.add(player_id)
+                    db_player_teams[player_id] = team_num
+            
+            voice_player_ids = set()
+            voice_player_teams = {}  # player_id -> team_number
+            for team_num, members in current_voice_teams.items():
+                for member in members:
+                    voice_player_ids.add(member.id)
+                    voice_player_teams[member.id] = team_num
+            
+            # Track changes
+            changes = {
+                'added': [],      # New players
+                'removed': [],    # Players who left
+                'moved': [],      # Players who changed teams
+                'unchanged': []   # Players in same team
+            }
+            
+            # Process changes
+            for player_id in voice_player_ids:
+                if player_id not in db_player_ids:
+                    # New player - need to add to match
+                    member = discord.utils.get(interaction.guild.members, id=player_id)
+                    if member:
+                        team_num = voice_player_teams[player_id]
+                        try:
+                            await api_client.add_player_to_match(
+                                match_id=match_id,
+                                user_id=player_id,
+                                guild_id=interaction.guild.id,
+                                team_number=team_num
+                            )
+                            changes['added'].append({
+                                'username': member.display_name,
+                                'team': team_num
+                            })
+                        except Exception as e:
+                            logger.error(f"Failed to add player {member.display_name} to match: {e}")
+                elif voice_player_teams[player_id] != db_player_teams[player_id]:
+                    # Player moved teams
+                    member = discord.utils.get(interaction.guild.members, id=player_id)
+                    if member:
+                        old_team = db_player_teams[player_id]
+                        new_team = voice_player_teams[player_id]
+                        try:
+                            await api_client.update_player_team_assignment(
+                                match_id=match_id,
+                                user_id=player_id,
+                                guild_id=interaction.guild.id,
+                                new_team_number=new_team
+                            )
+                            changes['moved'].append({
+                                'username': member.display_name,
+                                'from_team': old_team,
+                                'to_team': new_team
+                            })
+                        except Exception as e:
+                            logger.error(f"Failed to move player {member.display_name} to team {new_team}: {e}")
+                else:
+                    # Player unchanged
+                    member = discord.utils.get(interaction.guild.members, id=player_id)
+                    if member:
+                        changes['unchanged'].append({
+                            'username': member.display_name,
+                            'team': voice_player_teams[player_id]
+                        })
+            
+            # Handle removed players
+            for player_id in db_player_ids:
+                if player_id not in voice_player_ids:
+                    # Player left - remove from match
+                    member = discord.utils.get(interaction.guild.members, id=player_id)
+                    username = member.display_name if member else f"User {player_id}"
+                    old_team = db_player_teams[player_id]
+                    try:
+                        await api_client.remove_player_from_match(
+                            match_id=match_id,
+                            user_id=player_id,
+                            guild_id=interaction.guild.id
+                        )
+                        changes['removed'].append({
+                            'username': username,
+                            'team': old_team
+                        })
+                    except Exception as e:
+                        logger.error(f"Failed to remove player {username} from match: {e}")
+            
+            # Update in-memory active match data
+            if changes['added'] or changes['removed'] or changes['moved']:
+                # Rebuild teams data for active match
+                new_teams = []
+                for team_num, members in current_voice_teams.items():
+                    team_data = []
+                    for member in members:
+                        # Get player ratings for team balancer format
+                        try:
+                            user_data = await api_client.get_user(interaction.guild.id, member.id)
+                            if user_data:
+                                player_data = {
+                                    'user_id': member.id,
+                                    'username': member.display_name,
+                                    'rating_mu': user_data['rating_mu'],
+                                    'rating_sigma': user_data['rating_sigma'],
+                                    'discord_member': member
+                                }
+                                team_data.append(player_data)
+                        except Exception as e:
+                            logger.error(f"Failed to get user data for {member.display_name}: {e}")
+                    
+                    new_teams.append(team_data)
+                
+                # Update active match in voice manager
+                active_match['teams'] = new_teams
+                self.voice_manager.set_active_match(interaction.guild.id, active_match)
+            
+            # Create summary embed
+            embed = discord.Embed(
+                title="🔄 Team Update Complete",
+                description="Team memberships have been updated based on current voice channels.",
+                color=Config.EMBED_COLOR
+            )
+            embed.set_footer(text=get_bot_footer_text())
+            
+            # Add changes summary
+            if changes['added']:
+                added_text = '\n'.join([f"• {p['username']} → Team {p['team']}" for p in changes['added']])
+                embed.add_field(name="➕ Added Players", value=added_text, inline=False)
+            
+            if changes['removed']:
+                removed_text = '\n'.join([f"• {p['username']} (was Team {p['team']})" for p in changes['removed']])
+                embed.add_field(name="➖ Removed Players", value=removed_text, inline=False)
+            
+            if changes['moved']:
+                moved_text = '\n'.join([f"• {p['username']}: Team {p['from_team']} → Team {p['to_team']}" for p in changes['moved']])
+                embed.add_field(name="↔️ Moved Players", value=moved_text, inline=False)
+            
+            if changes['unchanged']:
+                unchanged_count = len(changes['unchanged'])
+                embed.add_field(name="✅ Unchanged", value=f"{unchanged_count} players remained in their teams", inline=False)
+            
+            # Show current team summary
+            team_summary = []
+            for team_num, members in current_voice_teams.items():
+                if members:
+                    member_names = [m.display_name for m in members]
+                    team_summary.append(f"**Team {team_num}**: {', '.join(member_names)}")
+            
+            if team_summary:
+                embed.add_field(name="👥 Current Teams", value='\n'.join(team_summary), inline=False)
+            
+            # Add note about what this affects
+            embed.add_field(
+                name="📝 Note", 
+                value="These changes will be reflected when `/record_result` is used.", 
+                inline=False
+            )
+            
+            await interaction.followup.send(embed=embed)
+            
+            # Log the changes
+            total_changes = len(changes['added']) + len(changes['removed']) + len(changes['moved'])
+            logger.info(f"Team update completed by {interaction.user.display_name}: {total_changes} changes made")
+            
+        except Exception as e:
+            logger.error(f"Error in update_team command: {e}")
+            embed = EmbedTemplates.error_embed(
+                "Update Error",
+                "An error occurred while updating team memberships. Please try again."
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(TeamCommands(bot))

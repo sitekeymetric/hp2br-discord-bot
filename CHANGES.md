@@ -3,6 +3,35 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v2.16.3-build.1 - 2025-08-14
+
+### Changes
+- **Added /update_team command**: Command to synchronize team memberships with current voice channels during active matches
+- **Real-time team management**: Automatically detects players who joined, left, or moved between team voice channels
+- **Database synchronization**: Updates match database to reflect current voice channel occupancy
+- **Comprehensive change tracking**: Shows detailed summary of all team membership changes (added/removed/moved players)
+- **In-memory state updates**: Maintains active match data consistency for accurate result recording
+
+### Command Features
+- **Voice channel scanning**: Detects current team memberships by scanning team voice channels
+- **Smart change detection**: Compares voice state with database to identify discrepancies
+- **Multi-operation support**: Handles adding new players, removing absent players, and moving players between teams
+- **Status reporting**: Provides detailed feedback on all changes made during synchronization
+- **Permission requirements**: Requires `manage_channels` permission for proper access control
+
+### Technical Implementation
+- **API service methods**: `remove_player_from_match()`, `update_player_team_assignment()`, `get_match_teams()` in match_service.py
+- **API routes**: DELETE `/matches/{match_id}/players/{user_id}`, PUT `/matches/{match_id}/players/{user_id}/team`, GET `/matches/{match_id}/teams`
+- **Bot integration**: Complete Discord command implementation with voice scanning and database sync logic
+- **Error handling**: Comprehensive error handling for API failures and invalid states
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-14T00:00:00.000000
+- New Feature: Dynamic team membership management during active matches
+- Permission Level: Requires manage_channels permission
+
+---
 ## v2.16.2-build.1 - 2025-08-13
 
 ### Changes

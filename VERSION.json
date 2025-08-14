@@ -1,8 +1,8 @@
 {
   "major": 2,
   "minor": 16,
-  "patch": 2,
+  "patch": 3,
   "build": 1,
-  "last_updated": "2025-08-13T22:35:22.447684",
-  "description": "Fixed /match_history team display issues - now properly shows team numbers, placements, and teammate information with better formatting"
+  "last_updated": "2025-08-14T00:00:00.000000",
+  "description": "Added /update_team command to synchronize team memberships with current voice channels during active matches (requires manage_channels permission)"
 }
