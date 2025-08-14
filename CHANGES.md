@@ -3,6 +3,17 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v2.19.0-build.1 - 2025-08-14
+
+### Changes
+- Added OpenSkill rating as beta feature to /stats command - shows team-based skill assessment alongside placement ratings
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-14T12:00:46.497468
+
+---
+
 ## v2.18.3-build.1 - 2025-08-14
 
 ### Changes

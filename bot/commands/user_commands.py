@@ -85,7 +85,7 @@ class UserCommands(commands.Cog):
             )
             await interaction.followup.send(embed=embed, ephemeral=True)
     
-    @app_commands.command(name="stats", description="Show player statistics (based on completed matches only)")
+    @app_commands.command(name="stats", description="Show player statistics (includes OpenSkill beta rating)")
     @app_commands.describe(user="The user to show stats for (defaults to yourself)")
     async def stats(self, interaction: discord.Interaction, user: Optional[discord.Member] = None):
         """Display user statistics based only on COMPLETED matches"""
@@ -152,8 +152,39 @@ class UserCommands(commands.Cog):
                 limit=5
             )
             
+            # Try to get OpenSkill rating (beta feature)
+            openskill_data = None
+            try:
+                openskill_data = await api_client.get_openskill_rating(interaction.guild.id, target_user.id)
+                logger.debug(f"OpenSkill data retrieved for user {target_user.id}: {openskill_data}")
+            except Exception as e:
+                logger.debug(f"OpenSkill data not available for user {target_user.id}: {e}")
+                # This is expected if OpenSkill system isn't fully set up or user has no data
+            
             # Create stats embed with completed match data and teammate info
             embed = EmbedTemplates.user_stats_embed(user_data, teammate_stats)
+            
+            # Add OpenSkill rating as beta feature if available
+            if openskill_data and openskill_data.get('games_played', 0) > 0:
+                mu = openskill_data.get('mu', 25.0)
+                sigma = openskill_data.get('sigma', 8.333)
+                display_rating = int(mu * 60)  # Convert to display rating
+                games_played = openskill_data.get('games_played', 0)
+                
+                embed.add_field(
+                    name="🧪 OpenSkill Rating (Beta)",
+                    value=f"**{display_rating}** ({mu:.1f}μ ± {sigma:.1f}σ)\n"
+                          f"Games: {games_played} | Team-based skill assessment",
+                    inline=False
+                )
+            elif openskill_data:
+                # User has OpenSkill entry but no games played
+                embed.add_field(
+                    name="🧪 OpenSkill Rating (Beta)",
+                    value="**1500** (25.0μ ± 8.3σ)\n"
+                          "Games: 0 | Team-based skill assessment",
+                    inline=False
+                )
             
             # Add note about completed matches only
             embed.add_field(
