@@ -1,8 +1,8 @@
 {
   "major": 2,
   "minor": 24,
-  "patch": 1,
+  "patch": 2,
   "build": 1,
-  "last_updated": "2025-08-14T12:51:32.693302",
-  "description": "Enhanced performance-based team composition leaderboard to show top 15 results instead of top 5 for more comprehensive analysis"
+  "last_updated": "2025-08-14T12:56:55.642010",
+  "description": "Simplified /leaderboard options: removed old win-based compositions, changed 'Team Performance' keyword to 'tp' for easier typing"
 }

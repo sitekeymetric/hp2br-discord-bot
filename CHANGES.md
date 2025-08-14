@@ -3,6 +3,17 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v2.24.2-build.1 - 2025-08-14
+
+### Changes
+- Simplified /leaderboard options: removed old win-based compositions, changed 'Team Performance' keyword to 'tp' for easier typing
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-14T12:56:55.642010
+
+---
+
 ## v2.24.1-build.1 - 2025-08-14
 
 ### Changes
