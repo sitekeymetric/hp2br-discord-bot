@@ -334,7 +334,8 @@ class UserCommands(commands.Cog):
     @app_commands.choices(rating_system=[
         app_commands.Choice(name="Traditional (Placement-based)", value="traditional"),
         app_commands.Choice(name="OpenSkill (Team-based) - Beta", value="openskill"),
-        app_commands.Choice(name="Team Compositions (Winning combos)", value="compositions")
+        app_commands.Choice(name="Team Compositions (Winning combos)", value="compositions"),
+        app_commands.Choice(name="Team Performance (Rating + Placement)", value="performance")
     ])
     async def leaderboard(self, interaction: discord.Interaction, 
                          limit: Optional[int] = 10,
@@ -346,11 +347,41 @@ class UserCommands(commands.Cog):
         limit = max(1, min(limit, 25))
         
         # Validate rating system
-        if rating_system not in ["traditional", "openskill", "compositions"]:
+        if rating_system not in ["traditional", "openskill", "compositions", "performance"]:
             rating_system = "traditional"
         
         try:
-            if rating_system == "compositions":
+            if rating_system == "performance":
+                # Get enhanced performance-based team composition statistics
+                try:
+                    composition_stats = await api_client.get_enhanced_team_composition_stats(interaction.guild.id)
+                    
+                    if not composition_stats or composition_stats.get('total_matches', 0) == 0:
+                        embed = EmbedTemplates.warning_embed(
+                            "No Performance Data",
+                            "No completed matches with rating data found for performance analysis!\n\n"
+                            "Performance analysis requires matches with rating changes.\n"
+                            "Try using `/leaderboard traditional` to see individual ratings."
+                        )
+                        await interaction.followup.send(embed=embed)
+                        return
+                    
+                    # Create enhanced team composition leaderboard embed
+                    embed = EmbedTemplates.enhanced_team_composition_leaderboard_embed(
+                        composition_stats=composition_stats,
+                        guild_name=interaction.guild.name
+                    )
+                    
+                except Exception as e:
+                    logger.error(f"Error getting enhanced team composition stats: {e}")
+                    embed = EmbedTemplates.error_embed(
+                        "Performance Analysis Error",
+                        "Failed to retrieve performance-based team statistics. Try using traditional rating system."
+                    )
+                    await interaction.followup.send(embed=embed, ephemeral=True)
+                    return
+                    
+            elif rating_system == "compositions":
                 # Get team composition statistics
                 try:
                     composition_stats = await api_client.get_team_composition_stats(interaction.guild.id)

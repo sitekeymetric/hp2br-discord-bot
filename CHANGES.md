@@ -3,6 +3,28 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v2.24.1-build.1 - 2025-08-14
+
+### Changes
+- Enhanced performance-based team composition leaderboard to show top 15 results instead of top 5 for more comprehensive analysis
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-14T12:51:32.693302
+
+---
+
+## v2.24.0-build.1 - 2025-08-14
+
+### Changes
+- Added performance-based team composition analysis to /leaderboard - now ranks teams by placement results, rating changes, and consistency instead of just wins
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-14T12:48:19.874284
+
+---
+
 ## v2.23.1-build.1 - 2025-08-14
 
 ### Changes

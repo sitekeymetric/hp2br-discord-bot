@@ -1,8 +1,8 @@
 {
   "major": 2,
-  "minor": 23,
+  "minor": 24,
   "patch": 1,
   "build": 1,
-  "last_updated": "2025-08-14T12:41:29.212190",
-  "description": "Updated team composition leaderboard to show top 5 results instead of top 3, and added explanation for why most 3+ player teams have only 1 win each"
+  "last_updated": "2025-08-14T12:51:32.693302",
+  "description": "Enhanced performance-based team composition leaderboard to show top 15 results instead of top 5 for more comprehensive analysis"
 }

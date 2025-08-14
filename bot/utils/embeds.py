@@ -739,3 +739,98 @@ class EmbedTemplates:
         embed.set_footer(text=get_bot_footer_text())
         
         return embed
+    
+    @staticmethod
+    def enhanced_team_composition_leaderboard_embed(composition_stats: Dict, guild_name: str) -> discord.Embed:
+        """Enhanced team composition statistics leaderboard based on performance metrics"""
+        embed = discord.Embed(
+            title=f"🏆 {guild_name} Performance-Based Team Leaderboard",
+            description=f"Best performing team combinations from {composition_stats.get('total_matches', 0)} completed matches\n"
+                       f"📊 **Ranked by**: Placement + Rating Changes + Consistency",
+            color=Config.EMBED_COLOR
+        )
+        
+        # Top Partnerships (2-player)
+        partnerships = composition_stats.get('top_partnerships', [])
+        if partnerships:
+            partnership_text = []
+            for i, partnership in enumerate(partnerships, 1):
+                name = partnership['partnership']
+                matches = partnership['matches_played']
+                placement = partnership['avg_placement']
+                rating_change = partnership['avg_rating_change']
+                score = partnership['performance_score']
+                top3 = partnership['top3_finishes']
+                
+                # Create performance summary
+                performance_line = f"{i}. **{name}** (Score: {score})"
+                details_line = f"   📊 {matches} matches • Avg: {placement} place • Rating: {rating_change:+.1f} • Top 3: {top3}x"
+                partnership_text.append(f"{performance_line}\n{details_line}")
+            
+            embed.add_field(
+                name="👥 Top 15 Partnerships (2-Player)",
+                value="\n".join(partnership_text) if partnership_text else "No data available",
+                inline=False
+            )
+        
+        # Top Trios (3-player)
+        trios = composition_stats.get('top_trios', [])
+        if trios:
+            trio_text = []
+            for i, trio in enumerate(trios, 1):
+                name = trio['composition']
+                if len(name) > 40:
+                    name = name[:37] + "..."
+                matches = trio['matches_played']
+                placement = trio['avg_placement']
+                rating_change = trio['avg_rating_change']
+                score = trio['performance_score']
+                top3 = trio['top3_finishes']
+                
+                performance_line = f"{i}. **{name}** (Score: {score})"
+                details_line = f"   📊 {matches} matches • Avg: {placement} place • Rating: {rating_change:+.1f} • Top 3: {top3}x"
+                trio_text.append(f"{performance_line}\n{details_line}")
+            
+            embed.add_field(
+                name="🔺 Top 15 Trios (3-Player)",
+                value="\n".join(trio_text) if trio_text else "No data available",
+                inline=False
+            )
+        
+        # Top Squads (4-player)
+        squads = composition_stats.get('top_squads', [])
+        if squads:
+            squad_text = []
+            for i, squad in enumerate(squads, 1):
+                name = squad['composition']
+                if len(name) > 40:
+                    name = name[:37] + "..."
+                matches = squad['matches_played']
+                placement = squad['avg_placement']
+                rating_change = squad['avg_rating_change']
+                score = squad['performance_score']
+                top3 = squad['top3_finishes']
+                
+                performance_line = f"{i}. **{name}** (Score: {score})"
+                details_line = f"   📊 {matches} matches • Avg: {placement} place • Rating: {rating_change:+.1f} • Top 3: {top3}x"
+                squad_text.append(f"{performance_line}\n{details_line}")
+            
+            embed.add_field(
+                name="🔷 Top 15 Squads (4-Player)",
+                value="\n".join(squad_text) if squad_text else "No data available",
+                inline=False
+            )
+        
+        # Add explanation about performance scoring
+        embed.add_field(
+            name="📈 Performance Scoring",
+            value="• **Better Placement**: Lower average placement = higher score\n"
+                  "• **Rating Growth**: Positive rating changes boost score\n"
+                  "• **Consistency**: Multiple matches together show reliability\n"
+                  "• **Top 3 Finishes**: Frequent podium finishes indicate strong performance",
+            inline=False
+        )
+        
+        embed.set_footer(text=get_bot_footer_text())
+        
+        return embed

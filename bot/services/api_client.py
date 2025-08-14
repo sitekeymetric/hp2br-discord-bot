@@ -202,8 +202,12 @@ class APIClient:
     
     # Team Composition Analysis Methods
     async def get_team_composition_stats(self, guild_id: int) -> Optional[Dict]:
-        """Get team composition statistics"""
+        """Get team composition statistics (win-based)"""
         return await self._make_request("GET", f"/team-compositions/stats/{guild_id}")
+    
+    async def get_enhanced_team_composition_stats(self, guild_id: int) -> Optional[Dict]:
+        """Get enhanced team composition statistics (performance-based)"""
+        return await self._make_request("GET", f"/team-compositions/performance/stats/{guild_id}")
     
     async def process_openskill_match(self, match_id: str, team_placements: Dict[str, int]) -> Optional[Dict]:
         """Process OpenSkill ratings for a completed match"""
