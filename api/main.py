@@ -33,6 +33,10 @@ def startup_event():
 app.include_router(users.router)
 app.include_router(matches.router)
 
+# Advanced Rating System v3.0.0
+from routes import advanced_matches
+app.include_router(advanced_matches.router)
+
 @app.get("/")
 def root():
     return {

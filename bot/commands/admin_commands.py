@@ -327,9 +327,9 @@ class AdminCommands(commands.Cog):
             )
             await interaction.followup.send(embed=embed, ephemeral=True)
     
-    @app_commands.command(name="cleanup", description="Clean up abandoned team channels")
+    @app_commands.command(name="admin_cleanup", description="Admin cleanup - clean up abandoned team channels with detailed logging")
     @app_commands.default_permissions(administrator=True)
-    async def cleanup(self, interaction: discord.Interaction):
+    async def admin_cleanup(self, interaction: discord.Interaction):
         """Clean up abandoned team channels"""
         await interaction.response.defer(ephemeral=True)
         

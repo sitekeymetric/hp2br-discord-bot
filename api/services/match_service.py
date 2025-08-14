@@ -206,18 +206,20 @@ class MatchService:
             history.append({
                 'user_id': match_player.user_id,
                 'guild_id': match_player.guild_id,
-                'team_number': match_player.team_number,
+                'team_number': match_player.team_number if match_player.team_number is not None else 1,
+                'team_placement': match_player.team_placement,  # Add team placement for placement-based results
                 'rating_mu_before': match_player.rating_mu_before,
                 'rating_sigma_before': match_player.rating_sigma_before,
                 'rating_mu_after': match_player.rating_mu_after,
                 'rating_sigma_after': match_player.rating_sigma_after,
-                'result': match_player.result.value,
-                'match_id': match.match_id,
-                'start_time': match.start_time,
-                'end_time': match.end_time,
-                'status': match.status.value,
+                'result': match_player.result.value if match_player.result else 'unknown',
+                'match_id': str(match.match_id),  # Convert UUID to string for JSON serialization
+                'start_time': match.start_time.isoformat() if match.start_time else None,
+                'end_time': match.end_time.isoformat() if match.end_time else None,
+                'status': match.status.value if match.status else 'unknown',
                 'result_type': match.result_type.value if match.result_type else None,
-                'teammates': teammate_info  # NEW: Include teammate information
+                'total_teams': match.total_teams,  # Add total teams in match
+                'teammates': teammate_info  # Include teammate information
             })
         
         return history

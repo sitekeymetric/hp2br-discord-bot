@@ -3,6 +3,265 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v2.16.2-build.1 - 2025-08-13
+
+### Changes
+- Fixed /match_history team display issues - now properly shows team numbers, placements, and teammate information with better formatting
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-13T22:35:22.447684
+
+---
+
+## v2.16.1-build.1 - 2025-08-13
+
+### Changes
+- Fixed team balancing issue where teams could have 1 player or more than 4 players due to snake draft distribution bugs
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-13T21:21:26.859943
+
+---
+
+## v2.16.0-build.1 - 2025-08-10
+
+### Changes
+- Updated voice channel creation to only occur when Create Team button is clicked for better user control
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-10T22:54:08.249837
+
+---
+
+## v2.15.2-build.1 - 2025-08-09
+
+### Changes
+- **Fixed duplicate command registration error**: Renamed admin cleanup command to `/admin_cleanup` to resolve conflict
+- **Maintained dual cleanup functionality**: 
+  - `/cleanup` - Available to all users (team_commands.py)
+  - `/admin_cleanup` - Admin-only with detailed logging (admin_commands.py)
+- **Updated help documentation**: Reflects new command names and availability
+
+### Command Structure
+- **User cleanup**: `/cleanup` - Simple team channel cleanup for everyone
+- **Admin cleanup**: `/admin_cleanup` - Enhanced cleanup with admin privileges and detailed logging
+- **Help integration**: Both commands properly documented in startup help
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-09T00:30:00.000000
+- Bug Fix: Resolved Discord command registration conflict
+- Maintains backward compatibility for admin functionality
+
+---
+## v2.15.1-build.1 - 2025-08-09
+
+### Changes
+- **Enhanced team balancing for np=false mode**: Now balances good and bad players across teams instead of pure random assignment
+- **Skill tier distribution**: Players divided into high/mid/low skill tiers and distributed evenly across teams
+- **Regional balancing**: Maintains rating balance even with regional requirements - good/bad regional players distributed evenly
+- **Improved balance algorithm**: Teams are assigned players based on current team average rating to maintain fairness
+
+### Team Creation Improvements
+- **Rating-balanced assignment**: Replaces pure random assignment with skill-aware distribution
+- **Maintains randomness**: Shuffles within skill tiers to prevent predictable team compositions
+- **Better team equity**: Each team gets a mix of high, medium, and low rated players where possible
+- **Regional integration**: Regional requirements now work with rating balance - no more stacked regional teams
+
+### Algorithm Details
+- `_random_balanced_assignment()`: New skill-tier based distribution system
+- `_distribute_players_with_rating_balance()`: Balanced assignment for regional players
+- `_distribute_tier_evenly()`: Even distribution within skill levels
+- Enhanced logging shows skill distribution and balanced placement decisions
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-09T00:25:00.000000
+- Enhancement: Balanced team creation while maintaining randomness
+- Regional compatibility: Works with all existing regional features
+
+---
+## v2.15.0-build.1 - 2025-08-09
+
+### Major Feature: Placement Rating System v4.0.0
+
+#### Core Rating Scale Changes
+- **New baseline**: 5th place = 0 points (was 7th place)
+- **Reduced point ranges**: 1st = +15, 30th+ = -25 (was 1st = +25, 30th+ = -40)
+- **Balanced progression**: Designed for realistic rating targets over ~50 games
+
+#### New Rating Targets (after ~50 games)
+- **Great players**: ~2000 rating (avg +10 points/game)
+- **Normal players**: ~1500 rating (avg 0 points/game) 
+- **Struggling players**: ~1000 rating (avg -10 points/game)
+- **New players**: ~800 rating (learning phase)
+
+#### Detailed Point Distribution
+**Positive Tiers:**
+- 1st Place: +15 points
+- 2nd Place: +10 points
+- 3rd Place: +5 points
+- 4th Place: +2 points
+- 5th Place: 0 points (baseline)
+
+**Penalty Tiers:**
+- 6th Place: -3 points
+- 7th Place: -6 points
+- 8th Place: -10 points
+- 9th-30th Place: -10 to -25 points (scaled)
+- 30th+ Place: -25 points (maximum penalty)
+
+#### UI and Display Updates
+- Updated `/rating_scale` command with new v4.0.0 information
+- Simplified display removing complex opponent strength multipliers
+- Added progression targets and example calculations
+- Updated startup message to reflect new system
+- Updated match result previews with new point values
+
+### Technical Implementation
+- Updated `calculate_placement_rating_change()` in API routes
+- Updated `calculate_rating_change()` in Discord bot views
+- Maintained backward compatibility with existing match data
+- All existing ratings preserved during transition
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-09T00:20:00.000000
+- Breaking Change: Rating scale completely rebalanced
+- New Feature: More balanced long-term progression system
+
+---
+## v2.14.3-build.1 - 2025-08-09
+
+### Changes
+- **Added user-accessible `/cleanup` command**: Now available to all users in team_commands.py, not just administrators
+- **Enhanced cleanup functionality**: Shows count of channels cleaned and players returned to waiting room
+- **Improved error handling**: Better error messages and logging for cleanup operations
+- **Duplicate command resolution**: Admin-only `/cleanup` remains in admin_commands.py, user `/cleanup` added to team_commands.py
+
+### User Features
+- `/cleanup`: Clean up team voice channels and return players to waiting room (available to everyone)
+- Automatic player counting and status reporting
+- Clear success/error messaging
+- Comprehensive logging for troubleshooting
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-09T00:15:00.000000
+- New Feature: User-accessible cleanup functionality
+
+---
+## v2.14.2-build.1 - 2025-08-09
+
+### Changes
+- **Replaced snake draft with fully random assignment**: Snake draft was too structured and predictable
+- **New random balanced assignment algorithm**: Players are completely shuffled and randomly assigned to teams while maintaining size balance
+- **Enhanced NP mode randomization**: Increased attempts from 10 to 15 random assignments + 3 greedy attempts
+- **Removed rating-based sorting in greedy algorithm**: Now uses full randomization for maximum variety
+- **Added comprehensive logging**: Shows shuffled player order and team slot assignments for transparency
+
+### Algorithm Changes
+- `_random_balanced_assignment()`: New method that shuffles both players and team slots for true randomness
+- `_distribute_players_randomly()`: Replaces snake draft distribution with random team selection
+- `_greedy_partner_avoidance()`: Now fully randomizes player order instead of rating-based sorting
+- Regional distribution: Maintains one regional player per team but randomizes their assignment order
+
+### Technical Details
+- Build: 1  
+- Updated: 2025-08-09T00:10:00.000000
+- Breaking Change: Snake draft algorithm completely replaced
+- New Feature: True random team generation while maintaining balance
+
+---
+## v2.14.1-build.1 - 2025-08-09
+
+### Changes
+- Enhanced randomization in team generation to fix identical team issue
+- Improved random seed generation using time + process ID + object ID
+- Increased NP mode attempts from 5 to 10 snake draft tries + 3 greedy attempts
+- Added tie-breaking randomization when multiple teams have equal penalty scores
+- Added pre-shuffle randomization to NP mode algorithms
+- Enhanced logging to show random seed values for debugging
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-09T00:05:00.000000
+
+---
+## v2.14.0-build.1 - 2025-08-09
+
+### Major Feature: New Partners (NP) Mode
+
+#### Core Changes
+- **Replaced `num_teams` parameter with `np` mode**: `/create_teams` now uses `np: Optional[bool] = False` instead of manual team count selection
+- **Automatic team count determination**: Bot now intelligently calculates optimal team count based on player count (6-8 players = 2 teams, 9-12 = 3 teams, etc.)
+- **New Partners algorithm**: When `np=true`, creates teams by minimizing repeated partnerships using partnership history from completed matches
+
+#### NP Mode Algorithm Features
+- **Partnership matrix building**: Analyzes historical teammate data to identify frequent partnerships
+- **Dual strategy approach**: Uses both snake draft randomization and greedy partner avoidance algorithms
+- **Regional exemptions**: When region is specified, players from that region are exempt from partnership penalties against each other
+- **Penalty scoring**: Applies exponential penalty scaling (games_together^1.5) to discourage repeated partnerships
+- **Comprehensive logging**: Detailed partnership analysis and penalty scoring for transparency
+
+#### Technical Implementation
+- Enhanced `TeamBalancer.create_balanced_teams()` with `np_mode` parameter
+- Added `_create_teams_with_new_partners()` - main NP mode orchestrator  
+- Added `_build_partnership_matrix()` - builds partnership history from API data
+- Added `_calculate_partnership_penalty()` - calculates penalty scores with regional exemptions
+- Added `_greedy_partner_avoidance()` - greedy algorithm for optimal team assignment
+- Added `_ensure_regional_distribution()` - ensures regional requirements are met
+- Added `_log_partnership_analysis()` - detailed logging of partnership decisions
+
+#### User Experience
+- **Seamless integration**: NP mode works with existing region requirements and custom formats
+- **Smart messaging**: Shows "New Partners Mode: Minimizing repeated partnerships" when enabled
+- **Backward compatibility**: All existing functionality (region requirements, custom formats) works identically
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-09T00:00:00.000000
+- Breaking Change: `num_teams` parameter removed from `/create_teams`
+- New Feature: `np` parameter enables partnership optimization
+- Regional Integration: NP mode respects regional distribution requirements
+
+---
+## v2.13.6-build.1 - 2025-08-08
+
+### Changes
+- Fixed ImportError in advanced_rating_commands by correcting embed imports and disabling conflicting extension
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-08T23:05:36.636730
+
+---
+
+## v2.13.5-build.1 - 2025-08-08
+
+### Changes
+- Fixed JSON parsing error in VERSION.json caused by Git merge conflict markers
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-08T23:02:53.809922
+
+---
+
+## v2.13.4-build.1 - 2025-08-08
+
+### Changes
+- Fixed team randomization by creating fresh TeamBalancer instances and adding comprehensive debug logging to identify randomization issues
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-08T22:44:29.544673
+
+---
+
 ## v2.13.3-build.1 - 2025-08-08
 
 ### Changes

@@ -1,8 +1,8 @@
 {
   "major": 2,
-  "minor": 13,
-  "patch": 3,
+  "minor": 16,
+  "patch": 2,
   "build": 1,
-  "last_updated": "2025-08-08T16:52:34.918472",
-  "description": "Enhanced Discord rate limit debugging with complete header inspection and configurable verbose logging"
+  "last_updated": "2025-08-13T22:35:22.447684",
+  "description": "Fixed /match_history team display issues - now properly shows team numbers, placements, and teammate information with better formatting"
 }

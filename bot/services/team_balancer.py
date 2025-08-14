@@ -1,6 +1,7 @@
 import discord
 import random
 import logging
+import time
 from typing import List, Dict, Tuple, Any
 from services.api_client import api_client
 from utils.constants import Config
@@ -11,7 +12,11 @@ class TeamBalancer:
     """Team balancing algorithm with snake draft"""
     
     def __init__(self):
-        pass
+        # Seed random number generator with current time + process info to ensure different results
+        import os
+        seed_value = int((time.time() * 1000000) + os.getpid() + id(self)) % 2147483647
+        random.seed(seed_value)
+        logger.info(f"TeamBalancer initialized with random seed: {seed_value}")
     
     async def create_teams_with_custom_sizes(self, members: List[discord.Member], team_sizes: List[int], guild_id: int, required_region: str = None) -> Tuple[List[List[Dict]], List[float], float]:
         """
@@ -140,6 +145,8 @@ class TeamBalancer:
         for player in players:
             # Find next available team that isn't full
             attempts = 0
+            original_team_index = team_index
+            
             while len(teams[team_index]) >= team_sizes[team_index] and attempts < len(team_sizes):
                 team_index += direction
                 
@@ -153,21 +160,36 @@ class TeamBalancer:
                 
                 attempts += 1
             
+            # Safety check: if no team has space, place in team with most available space
+            if attempts >= len(team_sizes):
+                available_spaces = [(team_sizes[i] - len(teams[i])) for i in range(len(teams))]
+                max_space = max(available_spaces)
+                if max_space > 0:
+                    team_index = available_spaces.index(max_space)
+                else:
+                    # All teams are at or over capacity, find smallest team
+                    current_sizes = [len(team) for team in teams]
+                    min_size = min(current_sizes)
+                    team_index = current_sizes.index(min_size)
+                logger.warning(f"Custom distribution: placing {player['username']} in team {team_index + 1} (overflow scenario)")
+            
             # Add player to current team
             teams[team_index].append(player)
+            logger.debug(f"Custom: placed {player['username']} on Team {team_index + 1} (size: {len(teams[team_index])}/{team_sizes[team_index]})")
             
-            # Move to next team
-            team_index += direction
-            
-            # Reverse direction when reaching ends
-            if team_index >= len(team_sizes):
-                team_index = len(team_sizes) - 1
-                direction = -1
-            elif team_index < 0:
-                team_index = 0
-                direction = 1
+            # Move to next team (only if we found a valid team)
+            if attempts < len(team_sizes):
+                team_index += direction
+                
+                # Reverse direction when reaching ends
+                if team_index >= len(team_sizes):
+                    team_index = len(team_sizes) - 1
+                    direction = -1
+                elif team_index < 0:
+                    team_index = 0
+                    direction = 1
     
-    async def create_balanced_teams(self, members: List[discord.Member], num_teams: int, guild_id: int, required_region: str = None) -> Tuple[List[List[Dict]], List[float], float]:
+    async def create_balanced_teams(self, members: List[discord.Member], num_teams: int, guild_id: int, required_region: str = None, np_mode: bool = False) -> Tuple[List[List[Dict]], List[float], float]:
         """
         Main balancing algorithm with special cases for small player counts and region requirements
         Returns: (teams_with_data, team_ratings, balance_score)
@@ -193,17 +215,35 @@ class TeamBalancer:
             num_teams = 2
             logger.info(f"Special case: 5 players - splitting 2:3")
         else:
-            # 6+ players: Use normal balancing algorithm with region requirement
-            teams = self._create_balanced_teams_with_region(players_with_ratings, num_teams, required_region)
+            # 6+ players: Use normal balancing algorithm with region requirement and optional NP mode
+            teams = await self._create_balanced_teams_with_region(players_with_ratings, num_teams, guild_id, required_region, np_mode)
+        
+        # Validate final team sizes
+        team_sizes = [len(team) for team in teams]
+        min_size = min(team_sizes) if team_sizes else 0
+        max_size = max(team_sizes) if team_sizes else 0
+        
+        if max_size - min_size > 1:
+            logger.warning(f"Team size imbalance detected: {team_sizes}")
+            # Fix the imbalance by redistributing players
+            teams = self._fix_team_size_imbalance(teams)
+        
+        # Validate no empty teams
+        teams = [team for team in teams if team]  # Remove any empty teams
         
         # Calculate team ratings and balance score
         team_ratings = [self._calculate_team_rating(team) for team in teams]
         balance_score = self._calculate_balance_score(team_ratings)
         
-        logger.info(f"Created {num_teams} teams with balance score: {balance_score:.2f}")
+        # Final validation log
+        final_sizes = [len(team) for team in teams]
+        logger.info(f"Created {len(teams)} teams with sizes: {final_sizes}")
+        logger.info(f"Balance score: {balance_score:.2f}")
         logger.info(f"Team ratings: {[f'{rating:.1f}' for rating in team_ratings]}")
         if required_region:
             logger.info(f"Region requirement: {required_region}")
+        if np_mode:
+            logger.info("NP mode enabled: minimizing repeated partnerships")
         
         return teams, team_ratings, balance_score
     
@@ -330,8 +370,13 @@ class TeamBalancer:
         Group players by rating bands and shuffle within each band
         Preserves overall skill distribution while adding variety
         """
-        if len(players) < Config.MIN_RANDOMIZATION_PLAYERS:
+        if len(players) < 2:  # Lowered from Config.MIN_RANDOMIZATION_PLAYERS
+            logger.debug(f"Skipping rating band shuffle - only {len(players)} players")
             return players  # Not enough players to benefit from randomization
+        
+        # Log player ratings for debugging
+        player_ratings = [f"{p['username']}({p['rating_mu']:.0f})" for p in players]
+        logger.debug(f"Players before band shuffle: {player_ratings}")
         
         # Group players into rating bands
         rating_bands = {}
@@ -345,14 +390,27 @@ class TeamBalancer:
                 rating_bands[band] = []
             rating_bands[band].append(player)
         
+        logger.debug(f"Rating bands: {list(rating_bands.keys())}")
+        for band, band_players in rating_bands.items():
+            ratings_in_band = [f"{p['username']}({p['rating_mu']:.0f})" for p in band_players]
+            logger.debug(f"Band {band}: {ratings_in_band}")
+        
         # Shuffle within each band (only if band has multiple players)
         shuffled_players = []
         for band in sorted(rating_bands.keys(), reverse=True):  # Process high to low rating bands
             band_players = rating_bands[band]
             if len(band_players) >= 2:  # Only shuffle if 2+ players in band
+                before_shuffle = [p['username'] for p in band_players]
                 random.shuffle(band_players)
-                logger.debug(f"Shuffled {len(band_players)} players in rating band {band}-{band + Config.RATING_BAND_SIZE - 1}")
+                after_shuffle = [p['username'] for p in band_players]
+                logger.info(f"Shuffled band {band}: {before_shuffle} → {after_shuffle}")
+            else:
+                logger.debug(f"Skipping shuffle for band {band} - only {len(band_players)} player(s)")
             shuffled_players.extend(band_players)
+        
+        # Log final order after band shuffling
+        final_ratings = [f"{p['username']}({p['rating_mu']:.0f})" for p in shuffled_players]
+        logger.debug(f"Players after band shuffle: {final_ratings}")
         
         return shuffled_players
     
@@ -365,7 +423,12 @@ class TeamBalancer:
             threshold = Config.SIMILAR_RATING_THRESHOLD
         
         if len(players) < 2:
+            logger.debug(f"Skipping similar ratings shuffle - only {len(players)} players")
             return players
+        
+        # Log before similar ratings shuffle
+        before_similar = [f"{p['username']}({p['rating_mu']:.0f})" for p in players]
+        logger.debug(f"Players before similar ratings shuffle (threshold={threshold}): {before_similar}")
         
         randomized_players = []
         i = 0
@@ -383,11 +446,19 @@ class TeamBalancer:
             
             # Shuffle the group if it has multiple players
             if len(similar_group) > 1:
+                before_group = [p['username'] for p in similar_group]
                 random.shuffle(similar_group)
-                logger.debug(f"Shuffled {len(similar_group)} players with similar ratings around {current_rating:.0f}")
+                after_group = [p['username'] for p in similar_group]
+                logger.info(f"Shuffled similar ratings around {current_rating:.0f}: {before_group} → {after_group}")
+            else:
+                logger.debug(f"Skipping shuffle for {similar_group[0]['username']} - no similar ratings")
             
             randomized_players.extend(similar_group)
             i = j
+        
+        # Log final order after similar ratings shuffle
+        after_similar = [f"{p['username']}({p['rating_mu']:.0f})" for p in randomized_players]
+        logger.debug(f"Players after similar ratings shuffle: {after_similar}")
         
         return randomized_players
     
@@ -396,7 +467,9 @@ class TeamBalancer:
         Randomly select which team gets the first player in snake draft
         Prevents Team 1 from always getting the best player
         """
-        return random.randint(0, num_teams - 1)
+        starting_team = random.randint(0, num_teams - 1)
+        logger.info(f"Random starting team selected: Team {starting_team + 1} (out of {num_teams} teams)")
+        return starting_team
     
     def _snake_draft_balance(self, players: List[Dict], num_teams: int) -> List[List[Dict]]:
         """
@@ -406,6 +479,11 @@ class TeamBalancer:
         - Calculate optimal team sizes for even distribution
         - Distribute using snake pattern within size constraints
         """
+        # Log initial state
+        initial_order = [f"{p['username']}({p['rating_mu']:.0f})" for p in players]
+        logger.info(f"=== TEAM BALANCING DEBUG ===")
+        logger.info(f"Initial player order: {initial_order}")
+        
         # Sort players by effective rating (mu - sigma for conservative estimate)
         sorted_players = sorted(
             players,
@@ -413,9 +491,33 @@ class TeamBalancer:
             reverse=True
         )
         
+        after_sort = [f"{p['username']}({p['rating_mu']:.0f})" for p in sorted_players]
+        logger.info(f"After rating sort: {after_sort}")
+        
         # Apply controlled randomization for variety while maintaining balance
+        logger.info("Applying randomization...")
         sorted_players = self._shuffle_rating_bands(sorted_players)
         sorted_players = self._randomize_similar_ratings(sorted_players)
+        
+        final_draft_order = [f"{p['username']}({p['rating_mu']:.0f})" for p in sorted_players]
+        logger.info(f"Final draft order: {final_draft_order}")
+        
+        # Fallback randomization if no shuffling occurred
+        if final_draft_order == after_sort:
+            logger.warning("No randomization occurred! Applying fallback shuffle...")
+            # Create groups of 2-3 players and shuffle within each group
+            fallback_players = []
+            for i in range(0, len(sorted_players), 3):
+                group = sorted_players[i:i+3]
+                if len(group) > 1:
+                    group_names = [p['username'] for p in group]
+                    random.shuffle(group)
+                    logger.info(f"Fallback shuffle group: {group_names} → {[p['username'] for p in group]}")
+                fallback_players.extend(group)
+            sorted_players = fallback_players
+            
+            final_after_fallback = [f"{p['username']}({p['rating_mu']:.0f})" for p in sorted_players]
+            logger.info(f"Final order after fallback: {final_after_fallback}")
         
         # Calculate optimal team sizes for even distribution
         total_players = len(sorted_players)
@@ -440,7 +542,7 @@ class TeamBalancer:
         logger.debug(f"Starting snake draft with team {team_index + 1} (randomized)")
         
         for player in sorted_players:
-            # Find next available team in snake order
+            # Find next available team that has space
             attempts = 0
             while len(teams[team_index]) >= target_sizes[team_index] and attempts < num_teams:
                 # Move to next team in snake pattern
@@ -456,19 +558,28 @@ class TeamBalancer:
                 
                 attempts += 1
             
+            # Safety check: if all teams are full according to target sizes, place in smallest team
+            if attempts >= num_teams:
+                current_sizes = [len(team) for team in teams]
+                min_size = min(current_sizes)
+                team_index = current_sizes.index(min_size)
+                logger.warning(f"All teams at target size, placing {player['username']} in smallest team {team_index + 1}")
+            
             # Add player to current team
             teams[team_index].append(player)
+            logger.debug(f"Placed {player['username']} on Team {team_index + 1} (size: {len(teams[team_index])}/{target_sizes[team_index]})")
             
-            # Move to next team for next iteration
-            team_index += direction
-            
-            # Reverse direction when reaching ends
-            if team_index >= num_teams:
-                team_index = num_teams - 1
-                direction = -1
-            elif team_index < 0:
-                team_index = 0
-                direction = 1
+            # Move to next team for next iteration (only if we're not in overflow mode)
+            if attempts < num_teams:
+                team_index += direction
+                
+                # Reverse direction when reaching ends
+                if team_index >= num_teams:
+                    team_index = num_teams - 1
+                    direction = -1
+                elif team_index < 0:
+                    team_index = 0
+                    direction = 1
         
         # Log team composition with sizes
         for i, team in enumerate(teams):
@@ -480,6 +591,105 @@ class TeamBalancer:
         # Log distribution summary
         team_sizes = [len(team) for team in teams]
         logger.info(f"Team size distribution: {team_sizes} (total: {sum(team_sizes)} players)")
+        
+        # Validate and fix team sizes if needed
+        teams = self._validate_and_fix_team_sizes(teams, target_sizes)
+        
+        return teams
+    
+    def _validate_and_fix_team_sizes(self, teams: List[List[Dict]], target_sizes: List[int]) -> List[List[Dict]]:
+        """
+        Validate team sizes and fix any imbalances by redistributing players
+        """
+        current_sizes = [len(team) for team in teams]
+        
+        # Check if any team is significantly over/under target
+        max_allowed_diff = 1  # Allow at most 1 player difference
+        needs_fixing = False
+        
+        for i, (current, target) in enumerate(zip(current_sizes, target_sizes)):
+            if abs(current - target) > max_allowed_diff:
+                logger.warning(f"Team {i+1} size problem: {current} players (target: {target})")
+                needs_fixing = True
+        
+        if not needs_fixing:
+            logger.debug("Team sizes are within acceptable range")
+            return teams
+        
+        logger.info("Fixing team size imbalances...")
+        
+        # Collect all players and redistribute them properly
+        all_players = []
+        for team in teams:
+            all_players.extend(team)
+        
+        # Clear teams and redistribute
+        fixed_teams = [[] for _ in range(len(teams))]
+        
+        # Simple round-robin distribution with target size constraints
+        team_index = 0
+        for player in all_players:
+            # Find next team that needs players
+            attempts = 0
+            while len(fixed_teams[team_index]) >= target_sizes[team_index] and attempts < len(teams):
+                team_index = (team_index + 1) % len(teams)
+                attempts += 1
+            
+            # If all teams are at target, place in smallest team
+            if attempts >= len(teams):
+                current_sizes = [len(team) for team in fixed_teams]
+                min_size = min(current_sizes)
+                team_index = current_sizes.index(min_size)
+            
+            fixed_teams[team_index].append(player)
+            team_index = (team_index + 1) % len(teams)
+        
+        # Log the fix
+        new_sizes = [len(team) for team in fixed_teams]
+        logger.info(f"Fixed team sizes: {current_sizes} → {new_sizes}")
+        
+        return fixed_teams
+    
+    def _fix_team_size_imbalance(self, teams: List[List[Dict]]) -> List[List[Dict]]:
+        """
+        Fix team size imbalances by moving players from larger teams to smaller teams
+        """
+        if not teams:
+            return teams
+        
+        team_sizes = [len(team) for team in teams]
+        min_size = min(team_sizes)
+        max_size = max(team_sizes)
+        
+        logger.info(f"Fixing team size imbalance: sizes {team_sizes}")
+        
+        # Keep moving players until teams are balanced
+        max_iterations = 20  # Prevent infinite loops
+        iterations = 0
+        
+        while max_size - min_size > 1 and iterations < max_iterations:
+            # Find largest and smallest teams
+            largest_team_idx = team_sizes.index(max_size)
+            smallest_team_idx = team_sizes.index(min_size)
+            
+            # Move one player from largest to smallest team
+            if teams[largest_team_idx]:
+                player_to_move = teams[largest_team_idx].pop()
+                teams[smallest_team_idx].append(player_to_move)
+                
+                logger.debug(f"Moved {player_to_move['username']} from Team {largest_team_idx + 1} to Team {smallest_team_idx + 1}")
+            
+            # Recalculate sizes
+            team_sizes = [len(team) for team in teams]
+            min_size = min(team_sizes)
+            max_size = max(team_sizes)
+            iterations += 1
+        
+        if iterations >= max_iterations:
+            logger.warning("Hit maximum iterations while fixing team sizes")
+        
+        final_sizes = [len(team) for team in teams]
+        logger.info(f"Team size balance fixed: {final_sizes}")
         
         return teams
     
@@ -587,40 +797,228 @@ class TeamBalancer:
         
         return "\n".join(summary_lines)
     
-    def _create_balanced_teams_with_region(self, players: List[Dict], num_teams: int, required_region: str = None) -> List[List[Dict]]:
+    async def _create_balanced_teams_with_region(self, players: List[Dict], num_teams: int, guild_id: int, required_region: str = None, np_mode: bool = False) -> List[List[Dict]]:
         """
-        Create balanced teams with optional region requirement
+        Create balanced teams with optional region requirement and NP mode
         If region is specified, ensures each team has at least one player from that region
+        If np_mode is enabled, minimizes repeated partnerships
         """
-        if not required_region:
-            # Use standard snake draft if no region requirement
-            return self._snake_draft_balance(players, num_teams)
+        if not required_region and not np_mode:
+            # Use random balanced assignment if no special requirements
+            return self._random_balanced_assignment(players, num_teams)
+        
+        if np_mode:
+            # Use NP mode algorithm
+            return await self._create_teams_with_new_partners(players, num_teams, guild_id, required_region)
         
         # Separate players by region
         region_players = [p for p in players if p.get('region_code') == required_region]
         non_region_players = [p for p in players if p.get('region_code') != required_region]
         
-        # Sort both groups by rating
-        region_players.sort(key=lambda p: p['rating_mu'] - (p['rating_sigma'] * 0.5), reverse=True)
-        non_region_players.sort(key=lambda p: p['rating_mu'] - (p['rating_sigma'] * 0.5), reverse=True)
+        # Sort both groups by rating for balanced distribution
+        region_players.sort(key=lambda p: p['rating_mu'], reverse=True)
+        non_region_players.sort(key=lambda p: p['rating_mu'], reverse=True)
+        
+        logger.info(f"Regional distribution: {len(region_players)} from {required_region}, {len(non_region_players)} others")
         
         # Initialize teams
         teams = [[] for _ in range(num_teams)]
         
-        # First, distribute regional players (one per team)
-        for i in range(min(len(region_players), num_teams)):
-            teams[i].append(region_players[i])
+        # Distribute regional players with rating balance
+        # Try to put one regional player per team, balancing by skill
+        if region_players:
+            # Shuffle regional players for variety within skill levels
+            random.shuffle(region_players)
+            
+            # Distribute one per team first (if we have enough)
+            for i in range(min(len(region_players), num_teams)):
+                teams[i].append(region_players[i])
+                logger.debug(f"Regional player {region_players[i]['username']} → Team {i + 1}")
+            
+            # Add remaining regional players using balanced distribution
+            remaining_region_players = region_players[num_teams:]
+            if remaining_region_players:
+                self._distribute_players_with_rating_balance(remaining_region_players, teams)
         
-        # Add remaining regional players using snake draft
-        remaining_region_players = region_players[num_teams:]
-        if remaining_region_players:
-            self._distribute_players_snake_draft(remaining_region_players, teams)
-        
-        # Distribute non-regional players using snake draft
+        # Distribute non-regional players using rating balance
         if non_region_players:
-            self._distribute_players_snake_draft(non_region_players, teams)
+            self._distribute_players_with_rating_balance(non_region_players, teams)
         
         return teams
+    
+    def _random_balanced_assignment(self, players: List[Dict], num_teams: int) -> List[List[Dict]]:
+        """
+        Assign players to teams with rating balance - good and bad players distributed evenly
+        Maintains randomness while ensuring balanced team ratings
+        """
+        logger.info(f"=== RATING-BALANCED ASSIGNMENT ===")
+        logger.info(f"Assigning {len(players)} players to {num_teams} teams with rating balance")
+        
+        # Sort players by rating to understand skill distribution
+        sorted_players = sorted(players, key=lambda p: p['rating_mu'], reverse=True)
+        player_ratings = [f"{p['username']}({p['rating_mu']:.0f})" for p in sorted_players]
+        logger.info(f"Players by skill: {player_ratings}")
+        
+        # Calculate target team sizes for even distribution
+        total_players = len(players)
+        base_size = total_players // num_teams
+        extra_players = total_players % num_teams
+        
+        # Create target sizes: some teams get base_size+1, others get base_size
+        target_sizes = []
+        for i in range(num_teams):
+            if i < extra_players:
+                target_sizes.append(base_size + 1)
+            else:
+                target_sizes.append(base_size)
+        
+        logger.info(f"Target team sizes: {target_sizes}")
+        
+        # Initialize teams
+        teams = [[] for _ in range(num_teams)]
+        
+        # Distribute players in rating groups for balance
+        # Group players into skill tiers (high, mid, low) and distribute evenly
+        players_per_tier = max(1, len(sorted_players) // 3)
+        high_players = sorted_players[:players_per_tier]
+        mid_players = sorted_players[players_per_tier:players_per_tier*2]
+        low_players = sorted_players[players_per_tier*2:]
+        
+        logger.info(f"Skill distribution: {len(high_players)} high, {len(mid_players)} mid, {len(low_players)} low")
+        
+        # Shuffle each tier for randomness within skill levels
+        random.shuffle(high_players)
+        random.shuffle(mid_players) 
+        random.shuffle(low_players)
+        
+        # Distribute high skill players first (one per team if possible)
+        self._distribute_tier_evenly(high_players, teams, "high skill")
+        
+        # Distribute mid skill players
+        self._distribute_tier_evenly(mid_players, teams, "mid skill")
+        
+        # Distribute remaining low skill players
+        self._distribute_tier_evenly(low_players, teams, "low skill")
+        
+        # Log final team composition with balance
+        for i, team in enumerate(teams):
+            team_names = [p['username'] for p in team]
+            team_ratings = [p['rating_mu'] for p in team]
+            avg_rating = sum(team_ratings) / len(team_ratings) if team_ratings else 0
+            logger.info(f"Team {i+1} ({len(team)} players): {team_names} (avg: {avg_rating:.1f})")
+        
+        return teams
+    
+    def _distribute_tier_evenly(self, players: List[Dict], teams: List[List[Dict]], tier_name: str):
+        """
+        Distribute players of a skill tier evenly across teams
+        """
+        if not players:
+            return
+            
+        num_teams = len(teams)
+        team_index = 0
+        
+        for player in players:
+            # Find team with least players of this tier or smallest team
+            current_sizes = [len(team) for team in teams]
+            min_size = min(current_sizes)
+            
+            # Prefer teams with minimum size
+            candidate_teams = [i for i, size in enumerate(current_sizes) if size == min_size]
+            
+            # If multiple teams have same size, pick randomly for variety
+            if len(candidate_teams) > 1:
+                team_idx = random.choice(candidate_teams)
+            else:
+                team_idx = candidate_teams[0]
+            
+            teams[team_idx].append(player)
+            logger.debug(f"{tier_name} player {player['username']} → Team {team_idx + 1}")
+            
+            team_index = (team_index + 1) % num_teams
+    
+    def _distribute_players_with_rating_balance(self, players: List[Dict], teams: List[List[Dict]]):
+        """
+        Distribute players to existing teams while maintaining rating balance
+        Good and bad players are distributed evenly across teams
+        """
+        if not players:
+            return
+        
+        # Sort players by rating
+        sorted_players = sorted(players, key=lambda p: p['rating_mu'], reverse=True)
+        
+        # Distribute in round-robin fashion, but with rating balance consideration
+        # This ensures each team gets a mix of high and low rated players
+        for i, player in enumerate(sorted_players):
+            # Calculate current team ratings to find the team needing balance
+            team_ratings = []
+            for team in teams:
+                if team:
+                    avg_rating = sum(p['rating_mu'] for p in team) / len(team)
+                    team_ratings.append(avg_rating)
+                else:
+                    team_ratings.append(1500.0)  # Default for empty team
+            
+            # Find teams with current lowest average rating
+            min_rating = min(team_ratings)
+            candidate_teams = [idx for idx, rating in enumerate(team_ratings) if rating <= min_rating + 50]  # Within 50 points
+            
+            # Among candidate teams, pick one with fewest players
+            team_sizes = [len(team) for team in teams]
+            min_size_in_candidates = min(team_sizes[idx] for idx in candidate_teams)
+            best_teams = [idx for idx in candidate_teams if team_sizes[idx] == min_size_in_candidates]
+            
+            # Pick randomly among best options for variety
+            chosen_team = random.choice(best_teams)
+            
+            teams[chosen_team].append(player)
+            logger.debug(f"Balanced placement: {player['username']} → Team {chosen_team + 1} (rating: {player['rating_mu']:.0f})")
+    
+    def _distribute_players_randomly(self, players: List[Dict], teams: List[List[Dict]]):
+        """
+        Randomly distribute players to existing teams while maintaining size balance
+        """
+        if not players:
+            return
+        
+        num_teams = len(teams)
+        
+        # Create list of available team indices, weighted by how many spots each team has
+        team_weights = []
+        for team_idx, team in enumerate(teams):
+            # Calculate how much space this team has relative to others
+            current_sizes = [len(t) for t in teams]
+            min_size = min(current_sizes)
+            max_size = max(current_sizes)
+            
+            # Teams with fewer players get more weight
+            weight = max_size - len(team) + 1
+            team_weights.extend([team_idx] * weight)
+        
+        # Shuffle players for randomness
+        shuffled_players = players.copy()
+        random.shuffle(shuffled_players)
+        
+        # Assign each player to a random available team
+        for player in shuffled_players:
+            # Refresh weights based on current team sizes
+            current_sizes = [len(team) for team in teams]
+            min_size = min(current_sizes)
+            
+            # Only consider teams that aren't overfilled
+            available_teams = []
+            for team_idx, team in enumerate(teams):
+                if len(team) <= min_size:  # Only teams at minimum size
+                    available_teams.append(team_idx)
+            
+            if not available_teams:
+                available_teams = list(range(num_teams))  # Fallback to all teams
+            
+            # Randomly pick from available teams
+            chosen_team = random.choice(available_teams)
+            teams[chosen_team].append(player)
     
     def _distribute_players_snake_draft(self, players: List[Dict], teams: List[List[Dict]]):
         """
@@ -671,3 +1069,302 @@ class TeamBalancer:
             elif team_index < 0:
                 team_index = 1 if num_teams > 1 else 0
                 direction = 1
+    
+    async def _create_teams_with_new_partners(self, players: List[Dict], num_teams: int, guild_id: int, required_region: str = None) -> List[List[Dict]]:
+        """
+        Create teams optimized to minimize repeated partnerships (NP mode)
+        Regional players are exempt from partnership penalties when region is required
+        """
+        from services.api_client import api_client
+        
+        logger.info(f"=== NEW PARTNERS MODE DEBUG ===")
+        logger.info(f"Players: {[p['username'] for p in players]}")
+        logger.info(f"Required region: {required_region}")
+        
+        # Get partnership history for all players
+        partnership_matrix = await self._build_partnership_matrix(players, guild_id)
+        
+        # Generate multiple team combinations using different strategies
+        best_teams = None
+        best_score = float('inf')
+        
+        # Strategy 1: Random balanced assignment (try multiple times for variety)
+        for attempt in range(15):  # Try more random combinations
+            # Create a copy and apply full randomization
+            players_copy = players.copy()
+            random.shuffle(players_copy)  # Full shuffle for maximum randomness
+            
+            teams = self._random_balanced_assignment(players_copy, num_teams)
+            if required_region:
+                teams = self._ensure_regional_distribution(teams, required_region)
+            
+            score = self._calculate_partnership_penalty(teams, partnership_matrix, required_region)
+            logger.debug(f"Random assignment attempt {attempt + 1}: penalty score {score:.2f}")
+            
+            if score < best_score:
+                best_score = score
+                best_teams = teams
+        
+        # Strategy 2: Greedy partnership avoidance (try multiple times with randomization)
+        for attempt in range(3):  # Try greedy with different randomization
+            greedy_teams = self._greedy_partner_avoidance(players.copy(), num_teams, partnership_matrix, required_region)
+            greedy_score = self._calculate_partnership_penalty(greedy_teams, partnership_matrix, required_region)
+            logger.debug(f"Greedy attempt {attempt + 1}: penalty score {greedy_score:.2f}")
+            
+            if greedy_score < best_score:
+                best_score = greedy_score
+                best_teams = greedy_teams
+        
+        # If we have multiple equally good solutions, add tie-breaking randomization
+        if best_score == 0.0:  # Perfect score - choose randomly among random assignments
+            logger.info("Multiple perfect solutions found - using additional random selection")
+            # Re-run one more random assignment for final randomness
+            players_shuffled = players.copy()
+            random.shuffle(players_shuffled)
+            final_teams = self._random_balanced_assignment(players_shuffled, num_teams)
+            if required_region:
+                final_teams = self._ensure_regional_distribution(final_teams, required_region)
+            best_teams = final_teams
+        
+        # Log final partnership analysis
+        self._log_partnership_analysis(best_teams, partnership_matrix, required_region)
+        logger.info(f"Final NP penalty score: {best_score:.2f}")
+        
+        return best_teams
+    
+    async def _build_partnership_matrix(self, players: List[Dict], guild_id: int) -> Dict[tuple, int]:
+        """
+        Build a matrix of how many games each pair of players has played together
+        Returns: {(user_id1, user_id2): games_together_count}
+        """
+        from services.api_client import api_client
+        
+        partnership_matrix = {}
+        
+        for player in players:
+            try:
+                # Get teammate stats for this player
+                teammate_stats = await api_client.get_user_teammate_stats(
+                    guild_id=guild_id,
+                    user_id=player['user_id'],
+                    limit=50  # Get more teammates for better data
+                )
+                
+                if teammate_stats and 'frequent_partners' in teammate_stats:
+                    for partner_data in teammate_stats['frequent_partners']:
+                        # Find the partner in our current player list
+                        partner_user_id = None
+                        for p in players:
+                            if p['username'] == partner_data['teammate_username']:
+                                partner_user_id = p['user_id']
+                                break
+                        
+                        if partner_user_id:
+                            # Create a sorted tuple for consistent key
+                            pair_key = tuple(sorted([player['user_id'], partner_user_id]))
+                            partnership_matrix[pair_key] = partner_data['games_together']
+                
+            except Exception as e:
+                logger.warning(f"Failed to get teammate stats for {player['username']}: {e}")
+        
+        logger.debug(f"Partnership matrix built: {len(partnership_matrix)} partnerships found")
+        for pair, count in partnership_matrix.items():
+            if count > 0:
+                player1_name = next(p['username'] for p in players if p['user_id'] == pair[0])
+                player2_name = next(p['username'] for p in players if p['user_id'] == pair[1])
+                logger.debug(f"  {player1_name} + {player2_name}: {count} games")
+        
+        return partnership_matrix
+    
+    def _calculate_partnership_penalty(self, teams: List[List[Dict]], partnership_matrix: Dict[tuple, int], required_region: str = None) -> float:
+        """
+        Calculate penalty score for team arrangement based on repeated partnerships
+        Lower score = better (fewer repeated partnerships)
+        Regional players are exempt when region is required
+        """
+        total_penalty = 0.0
+        
+        for team in teams:
+            # Calculate penalty for this team
+            for i in range(len(team)):
+                for j in range(i + 1, len(team)):
+                    player1 = team[i]
+                    player2 = team[j]
+                    
+                    # Skip penalty if both are regional players (when region is required)
+                    if required_region:
+                        player1_regional = player1.get('region_code') == required_region
+                        player2_regional = player2.get('region_code') == required_region
+                        if player1_regional and player2_regional:
+                            continue
+                    
+                    # Get partnership count
+                    pair_key = tuple(sorted([player1['user_id'], player2['user_id']]))
+                    games_together = partnership_matrix.get(pair_key, 0)
+                    
+                    # Apply escalating penalty
+                    if games_together > 0:
+                        # Penalty increases exponentially with repeated partnerships
+                        penalty = games_together ** 1.5
+                        total_penalty += penalty
+        
+        return total_penalty
+    
+    def _greedy_partner_avoidance(self, players: List[Dict], num_teams: int, partnership_matrix: Dict[tuple, int], required_region: str = None) -> List[List[Dict]]:
+        """
+        Greedy algorithm to build teams while avoiding repeated partnerships
+        """
+        # Fully randomize players for maximum variety - no rating-based sorting
+        randomized_players = players.copy()
+        random.shuffle(randomized_players)
+        logger.debug(f"Greedy algorithm with fully randomized player order: {[p['username'] for p in randomized_players]}")
+        
+        # Initialize teams
+        teams = [[] for _ in range(num_teams)]
+        
+        # Handle regional requirement first
+        if required_region:
+            regional_players = [p for p in randomized_players if p.get('region_code') == required_region]
+            non_regional_players = [p for p in randomized_players if p.get('region_code') != required_region]
+            
+            # Shuffle regional players too for randomness
+            random.shuffle(regional_players)
+            random.shuffle(non_regional_players)
+            
+            # Place one regional player per team first
+            for i, player in enumerate(regional_players[:num_teams]):
+                teams[i].append(player)
+            
+            # Remaining players to distribute
+            remaining_players = regional_players[num_teams:] + non_regional_players
+        else:
+            remaining_players = randomized_players
+        
+        # Distribute remaining players using greedy approach
+        for player in remaining_players:
+            best_teams = []  # Track teams with equally low penalty
+            lowest_penalty = float('inf')
+            
+            for team_idx, team in enumerate(teams):
+                # Calculate penalty if we add this player to this team
+                penalty = 0.0
+                for teammate in team:
+                    # Skip penalty calculation for regional pairs if region is required
+                    if required_region:
+                        player_regional = player.get('region_code') == required_region
+                        teammate_regional = teammate.get('region_code') == required_region
+                        if player_regional and teammate_regional:
+                            continue
+                    
+                    pair_key = tuple(sorted([player['user_id'], teammate['user_id']]))
+                    games_together = partnership_matrix.get(pair_key, 0)
+                    if games_together > 0:
+                        penalty += games_together ** 1.5
+                
+                # Also consider team size balance
+                team_size_penalty = len(team) * 0.1  # Small penalty for larger teams
+                total_penalty = penalty + team_size_penalty
+                
+                if total_penalty < lowest_penalty:
+                    lowest_penalty = total_penalty
+                    best_teams = [team_idx]
+                elif abs(total_penalty - lowest_penalty) < 0.001:  # Equal penalty
+                    best_teams.append(team_idx)
+            
+            # If multiple teams have equal penalty, choose randomly for variety
+            if len(best_teams) > 1:
+                best_team_idx = random.choice(best_teams)
+                logger.debug(f"Multiple equal options for {player['username']}, randomly chose team {best_team_idx + 1}")
+            elif best_teams:
+                best_team_idx = best_teams[0]
+            else:
+                best_team_idx = None
+            
+            # Add player to the best team
+            if best_team_idx is not None:
+                teams[best_team_idx].append(player)
+        
+        return teams
+    
+    def _ensure_regional_distribution(self, teams: List[List[Dict]], required_region: str) -> List[List[Dict]]:
+        """
+        Ensure each team has at least one player from the required region
+        """
+        # Count regional players per team
+        regional_distribution = []
+        for team in teams:
+            regional_count = sum(1 for p in team if p.get('region_code') == required_region)
+            regional_distribution.append(regional_count)
+        
+        # If distribution is already good, return as-is
+        if all(count > 0 for count in regional_distribution):
+            return teams
+        
+        # Otherwise, use the existing regional distribution method
+        # (This is a fallback to the existing logic)
+        all_players = []
+        for team in teams:
+            all_players.extend(team)
+        
+        region_players = [p for p in all_players if p.get('region_code') == required_region]
+        non_region_players = [p for p in all_players if p.get('region_code') != required_region]
+        
+        # Rebuild with proper regional distribution
+        new_teams = [[] for _ in range(len(teams))]
+        
+        # Place one regional player per team
+        for i, player in enumerate(region_players[:len(teams)]):
+            new_teams[i].append(player)
+        
+        # Distribute remaining players
+        remaining_players = region_players[len(teams):] + non_region_players
+        team_idx = 0
+        
+        for player in remaining_players:
+            new_teams[team_idx].append(player)
+            team_idx = (team_idx + 1) % len(teams)
+        
+        return new_teams
+    
+    def _log_partnership_analysis(self, teams: List[List[Dict]], partnership_matrix: Dict[tuple, int], required_region: str = None):
+        """
+        Log detailed analysis of partnerships in the final team arrangement
+        """
+        logger.info("=== PARTNERSHIP ANALYSIS ===")
+        
+        total_repeated_partnerships = 0
+        
+        for team_idx, team in enumerate(teams):
+            logger.info(f"Team {team_idx + 1}: {[p['username'] for p in team]}")
+            
+            team_partnerships = []
+            for i in range(len(team)):
+                for j in range(i + 1, len(team)):
+                    player1 = team[i]
+                    player2 = team[j]
+                    
+                    pair_key = tuple(sorted([player1['user_id'], player2['user_id']]))
+                    games_together = partnership_matrix.get(pair_key, 0)
+                    
+                    if games_together > 0:
+                        # Check if this pair is exempt (both regional when region required)
+                        exempt = False
+                        if required_region:
+                            player1_regional = player1.get('region_code') == required_region  
+                            player2_regional = player2.get('region_code') == required_region
+                            exempt = player1_regional and player2_regional
+                        
+                        status = " (exempt)" if exempt else ""
+                        team_partnerships.append(f"  {player1['username']} + {player2['username']}: {games_together} games{status}")
+                        
+                        if not exempt:
+                            total_repeated_partnerships += games_together
+            
+            if team_partnerships:
+                for partnership in team_partnerships:
+                    logger.info(partnership)
+            else:
+                logger.info("  No repeated partnerships!")
+        
+        logger.info(f"Total repeated partnerships (non-exempt): {total_repeated_partnerships}")
+        logger.info("===============================")

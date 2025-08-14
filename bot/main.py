@@ -225,18 +225,19 @@ async def help_command(interaction: discord.Interaction):
     
     embed.add_field(
         name="🎯 Team Commands",
-        value="• `/create_teams [num_teams]` - Create balanced teams\n"
+        value="• `/create_teams [np] [region]` - Create balanced teams\n"
               "• `/record_result` - Record match results (placement-based)\n"
-              "• `/cancel_match` - Cancel current match",
+              "• `/cancel_match` - Cancel current match\n"
+              "• `/cleanup` - Clean up team channels (available to all)",
         inline=False
     )
     
     embed.add_field(
-        name="🏆 New Placement-Based Rating System",
-        value="**No More Win/Loss!** All matches now use placement-based ratings:\n"
-              "• **Rank 7** = 1500 baseline (no rating change)\n"
-              "• **1st Place** = +25 rating maximum\n"
-              "• **30th+ Place** = -40 rating maximum\n"
+        name="🏆 Placement Rating System v4.0.0",
+        value="**Balanced for long-term progression!** All matches now use placement-based ratings:\n"
+              "• **5th Place** = 0 points (balanced baseline)\n"
+              "• **1st Place** = +15 points maximum\n"
+              "• **30th+ Place** = -25 points maximum\n"
               "• **Guild Matches**: Use consecutive ranks (1, 2, 3...)\n"
               "• **External Competitions**: Use actual ranks (1-30)\n"
               "• Use `/rating_scale` to see the full scale",
@@ -246,7 +247,7 @@ async def help_command(interaction: discord.Interaction):
     embed.add_field(
         name="⚙️ Admin Commands",
         value="• `/setup` - Initial bot setup\n"
-              "• `/cleanup` - Clean up team channels\n"
+              "• `/admin_cleanup` - Admin cleanup with detailed logging\n"
               "• `/admin_delete_user <@user>` - Delete user account\n"
               "• `/admin_update_user <@user>` - Update user info\n"
               "• `/admin_reset_rating <@user>` - Reset user rating",
@@ -348,6 +349,7 @@ async def load_extensions():
         'commands.user_commands',
         'commands.team_commands', 
         'commands.admin_commands'
+        # 'commands.advanced_rating_commands'  # Advanced Rating System v3.0 - Disabled due to conflicts
     ]
     
     for extension in extensions:

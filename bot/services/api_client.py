@@ -193,12 +193,35 @@ class APIClient:
         return await self.create_user(guild_id, user_id, username, region)
     
     async def record_placement_result(self, match_id: str, team_placements: Dict[int, int]) -> Dict:
-        """Record placement-based match result"""
+        """Record placement-based match result (legacy v2.0 system)"""
         # Wrap team_placements in the expected format for PlacementResultUpdate model
         data = {
             "team_placements": team_placements
         }
         result = await self._make_request("PUT", f"/matches/{match_id}/placement-result", json=data)
+        return result if result is not None else {}
+    
+    async def record_advanced_placement_result(self, match_id: str, team_placements: Dict[int, Dict]) -> Dict:
+        """Record match result using advanced rating system v3.0"""
+        data = {
+            "team_placements": team_placements
+        }
+        result = await self._make_request("PUT", f"/advanced-matches/{match_id}/placement-result", json=data)
+        return result if result is not None else {}
+    
+    async def preview_rating_changes(self, player_rating: float, team_avg_rating: float, opponent_teams: List[Dict]) -> Dict:
+        """Preview rating changes for different placements"""
+        data = {
+            "player_rating": player_rating,
+            "team_avg_rating": team_avg_rating,
+            "opponent_teams": opponent_teams
+        }
+        result = await self._make_request("POST", "/advanced-matches/rating-preview", json=data)
+        return result if result is not None else {}
+    
+    async def get_advanced_rating_scale(self) -> Dict:
+        """Get advanced rating scale information"""
+        result = await self._make_request("GET", "/advanced-matches/rating-scale")
         return result if result is not None else {}
     
     async def close(self):

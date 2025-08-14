@@ -505,73 +505,89 @@ class UserCommands(commands.Cog):
             )
             await interaction.followup.send(embed=embed, ephemeral=True)
 
-    @app_commands.command(name="rating_scale", description="Show the placement-based rating scale used for all matches")
+    @app_commands.command(name="rating_scale", description="Show the Placement Rating System v4.0.0 - balanced for long-term progression")
     async def rating_scale(self, interaction: discord.Interaction):
-        """Show the placement-based rating scale explanation"""
-        await interaction.response.defer()
+        """Show the placement rating scale explanation"""
+        await interaction.response.defer(ephemeral=True)
         
         try:
             embed = discord.Embed(
-                title="🏆 Placement-Based Rating Scale",
-                description="**All matches now use placement-based rating instead of simple win/loss**\n"
-                           "**Baseline**: Rank 7 = 1500 rating (no change)\n"
-                           "**Range**: +25 (1st place) to -40 (30th+ place)",
+                title="🏆 Placement Rating System v4.0.0",
+                description="**Balanced for long-term progression**\n"
+                           "**Key Feature**: 5th place = 0 points (balanced baseline)\n"
+                           "**Range**: +15 (1st place) to -25 (30th place)",
                 color=Config.EMBED_COLOR
             )
-            embed.set_footer(text=get_bot_footer_text())
             
-            # Above baseline ratings
+            # Positive tiers
             embed.add_field(
-                name="🏆 Above Baseline (Positive Ratings)",
-                value="🥇 **Rank 1**: +25.0 rating (Champion)\n"
-                      "🥈 **Rank 2**: +20.8 rating (Excellent)\n"
-                      "🥉 **Rank 3**: +16.7 rating (Great)\n"
-                      "🏆 **Rank 4**: +12.5 rating (Very Good)\n"
-                      "🏆 **Rank 5**: +8.3 rating (Good)\n"
-                      "🏆 **Rank 6**: +4.2 rating (Above Average)\n"
-                      "⚖️ **Rank 7**: ±0.0 rating (Baseline)",
-                inline=False
+                name="🎯 Positive Tiers",
+                value="🥇 **1st Place**: +15 points (Champion)\n"
+                      "🥈 **2nd Place**: +10 points (Excellent)\n"
+                      "🥉 **3rd Place**: +5 points (Great)\n"
+                      "🏆 **4th Place**: +2 points (Good)\n"
+                      "⚖️ **5th Place**: 0 points (Baseline)",
+                inline=True
             )
             
-            # Below baseline ratings
+            # Penalty tiers
             embed.add_field(
-                name="📉 Below Baseline (Negative Ratings)",
-                value="📊 **Rank 8**: -1.7 rating (Slightly Below)\n"
-                      "📊 **Rank 10**: -5.2 rating (Poor)\n"
-                      "📉 **Rank 12**: -8.7 rating (Very Bad)\n"
-                      "📉 **Rank 15**: -13.9 rating (Bottom Tier)\n"
-                      "🔻 **Rank 18**: -19.1 rating (Disastrous)\n"
-                      "🔻 **Rank 20**: -22.6 rating (Abysmal)\n"
-                      "🔻 **Rank 25**: -31.3 rating (Rock Bottom)\n"
-                      "🔻 **Rank 30+**: -40.0 rating (Absolute Worst)",
-                inline=False
+                name="📉 Penalty Tiers",
+                value="📉 **6th Place**: -3 points\n"
+                      "📉 **7th Place**: -6 points\n"
+                      "🔻 **8th Place**: -10 points\n"
+                      "💀 **9th-30th**: -10 to -25 points\n"
+                      "💀 **30th+ Place**: -25 points (max)",
+                inline=True
             )
             
-            # How it works
+            embed.add_field(name="\u200b", value="\u200b", inline=True)  # Spacer
+            
+            # Rating progression targets
             embed.add_field(
-                name="💡 How It Works",
-                value="• **Team Placement**: Your team's final ranking determines rating change\n"
-                      "• **Guild Matches**: Use consecutive ranks (1, 2, 3...)\n"
-                      "• **External Competitions**: Use actual ranks (1-30)\n"
-                      "• **Recovery Time**: One bad game takes 2-3 good games to recover\n"
-                      "• **Balanced System**: Easier to lose rating than gain it (realistic!)",
+                name="🎯 Rating Progression Targets",
+                value="🏆 **Great Players**: ~2000 (avg +10/game)\n"
+                      "⚖️ **Normal Players**: ~1500 (avg 0/game)\n"
+                      "📉 **Struggling Players**: ~1000 (avg -10/game)\n"
+                      "🌱 **New Players**: ~800 (learning phase)",
+                inline=True
+            )
+            
+            # Rating tiers (simplified)
+            embed.add_field(
+                name="🏆 Rating Tiers",
+                value="🏆 **Elite (2000+)**: Top performers\n"
+                      "🥇 **Advanced (1600+)**: Strong players\n"
+                      "⚖️ **Average (1200-1600)**: Normal range\n"
+                      "📊 **Developing (800-1200)**: Learning phase\n"
+                      "🌱 **New (<800)**: Just starting",
+                inline=True
+            )
+            
+            # System features
+            embed.add_field(
+                name="✨ System Features",
+                value="• **Balanced baseline** - 5th place = no change\n"
+                      "• **Moderate rewards** - encourages consistent play\n"
+                      "• **Escalating penalties** - discourages poor performance\n"
+                      "• **Long-term progression** - designed for ~50 games\n"
+                      "• **Simple & fair** - no complex multipliers",
                 inline=False
             )
             
             # Examples
             embed.add_field(
-                name="🎮 Real Examples (1500 Rating Player)",
-                value="• **Great Game (Rank 2)**: 1500 → 1521 (+21)\n"
-                      "• **Good Game (Rank 4)**: 1500 → 1513 (+13)\n"
-                      "• **Poor Game (Rank 12)**: 1500 → 1491 (-9)\n"
-                      "• **Bad Luck Game (Rank 18)**: 1500 → 1481 (-19)\n"
-                      "• **Terrible Game (Rank 25)**: 1500 → 1469 (-31)",
+                name="📊 Example Progressions",
+                value="**Consistent 3rd place**: +5 × 50 games = +250 total (1750 rating)\n"
+                      "**Mix of 1st-5th**: Avg +5/game = +250 total (1750 rating)\n"
+                      "**Consistent 7th place**: -6 × 50 games = -300 total (1200 rating)\n"
+                      "**Very poor performance**: Avg -15/game = -750 total (750 rating)",
                 inline=False
             )
             
-            embed.set_footer(text="This scale applies to all matches - no more simple win/loss!")
+            embed.set_footer(text=f"Placement Rating System v4.0.0 • {get_bot_footer_text()}")
             
-            await interaction.followup.send(embed=embed)
+            await interaction.followup.send(embed=embed, ephemeral=True)
             
         except Exception as e:
             logger.error(f"Error in rating_scale command: {e}")
