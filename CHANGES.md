@@ -3,6 +3,17 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v2.17.0-build.1 - 2025-08-14
+
+### Changes
+- Implemented OpenSkill parallel rating system - complete team-based rating alongside existing placement system
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-14T11:11:34.013020
+
+---
+
 ## v2.16.5-build.1 - 2025-08-14
 
 ### Changes

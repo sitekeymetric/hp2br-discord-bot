@@ -37,6 +37,10 @@ app.include_router(matches.router)
 from routes import advanced_matches
 app.include_router(advanced_matches.router)
 
+# OpenSkill Parallel Rating System
+from routes import openskill_routes
+app.include_router(openskill_routes.router)
+
 @app.get("/")
 def root():
     return {

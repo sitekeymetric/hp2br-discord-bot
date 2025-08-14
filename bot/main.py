@@ -336,7 +336,8 @@ async def load_extensions():
     extensions = [
         'commands.user_commands',
         'commands.team_commands', 
-        'commands.admin_commands'
+        'commands.admin_commands',
+        'commands.openskill_commands'  # OpenSkill parallel rating system
         # 'commands.advanced_rating_commands'  # Advanced Rating System v3.0 - Disabled due to conflicts
     ]
     

@@ -9,6 +9,9 @@ from schemas.match_schemas import MatchCreate, MatchPlayerCreate, MatchResultUpd
 from typing import List
 from uuid import UUID
 from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/matches", tags=["matches"])
 
@@ -294,10 +297,28 @@ def record_placement_result(match_id: str, placement_data: PlacementResultUpdate
                 break
         match.winning_team = winning_team
         
-        # Commit all changes
+        # Commit placement system changes
         db.commit()
         
-        return {"message": "Placement results recorded successfully"}
+        # PARALLEL PROCESSING: Also process with OpenSkill system
+        openskill_result = {"success": False, "error": None}
+        try:
+            from services.openskill_data_service import OpenSkillDataService
+            openskill_result = OpenSkillDataService.process_match_openskill_results(
+                db, match_id, team_placements_int
+            )
+        except Exception as e:
+            logger.error(f"OpenSkill processing failed for match {match_id}: {e}")
+            openskill_result = {"success": False, "error": str(e)}
+        
+        # Return results from both systems
+        response = {
+            "message": "Match results recorded successfully",
+            "placement_system": {"success": True, "message": "Placement ratings updated"},
+            "openskill_system": openskill_result
+        }
+        
+        return response
         
     except HTTPException:
         raise

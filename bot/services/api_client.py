@@ -175,6 +175,39 @@ class APIClient:
         result = await self._make_request("GET", f"/users/{guild_id}/{user_id}/teammates", params=params)
         return result if result is not None else []
     
+    # OpenSkill Rating System Methods
+    async def get_openskill_rating(self, guild_id: int, user_id: int) -> Optional[Dict]:
+        """Get OpenSkill rating for a user"""
+        return await self._make_request("GET", f"/openskill/ratings/{guild_id}/{user_id}")
+    
+    async def get_openskill_leaderboard(self, guild_id: int, limit: int = 25) -> List[Dict]:
+        """Get OpenSkill leaderboard for a guild"""
+        params = {"limit": limit}
+        result = await self._make_request("GET", f"/openskill/ratings/{guild_id}", params=params)
+        return result if result is not None else []
+    
+    async def get_openskill_history(self, guild_id: int, user_id: int, limit: int = 20) -> List[Dict]:
+        """Get OpenSkill match history for a user"""
+        params = {"limit": limit}
+        result = await self._make_request("GET", f"/openskill/history/{guild_id}/{user_id}", params=params)
+        return result if result is not None else []
+    
+    async def get_openskill_stats(self, guild_id: int) -> Optional[Dict]:
+        """Get OpenSkill statistics for a guild"""
+        return await self._make_request("GET", f"/openskill/stats/{guild_id}")
+    
+    async def compare_rating_systems(self, guild_id: int) -> Optional[Dict]:
+        """Compare OpenSkill and Placement rating systems for a guild"""
+        return await self._make_request("GET", f"/openskill/compare/{guild_id}")
+    
+    async def process_openskill_match(self, match_id: str, team_placements: Dict[str, int]) -> Optional[Dict]:
+        """Process OpenSkill ratings for a completed match"""
+        return await self._make_request("POST", f"/openskill/process-match/{match_id}", json=team_placements)
+    
+    async def initialize_guild_openskill(self, guild_id: int) -> Optional[Dict]:
+        """Initialize OpenSkill ratings for all users in a guild"""
+        return await self._make_request("POST", f"/openskill/initialize/{guild_id}")
+    
     # Utility Methods
     async def health_check(self) -> bool:
         """Check if API is accessible"""
