@@ -1,8 +1,8 @@
 {
   "major": 2,
   "minor": 16,
-  "patch": 1,
+  "patch": 2,
   "build": 1,
-  "last_updated": "2025-08-13T21:21:26.859943",
-  "description": "Fixed team balancing issue where teams could have 1 player or more than 4 players due to snake draft distribution bugs"
+  "last_updated": "2025-08-13T22:35:22.447684",
+  "description": "Fixed /match_history team display issues - now properly shows team numbers, placements, and teammate information with better formatting"
 }

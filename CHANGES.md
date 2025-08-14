@@ -3,6 +3,17 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v2.16.2-build.1 - 2025-08-13
+
+### Changes
+- Fixed /match_history team display issues - now properly shows team numbers, placements, and teammate information with better formatting
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-13T22:35:22.447684
+
+---
+
 ## v2.16.1-build.1 - 2025-08-13
 
 ### Changes

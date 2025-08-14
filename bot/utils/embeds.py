@@ -356,7 +356,10 @@ class EmbedTemplates:
         history_text = []
         for match in matches[:10]:  # Show last 10 matches
             result = match.get("result", "pending")
-            team_num = match.get("team_number", "?")
+            team_num = match.get("team_number", 1)  # Default to team 1 instead of "?"
+            team_placement = match.get("team_placement")
+            total_teams = match.get("total_teams", 2)
+            result_type = match.get("result_type")
             
             # Use end_time (when match was completed) instead of created_at
             end_time = match.get("end_time")
@@ -366,28 +369,21 @@ class EmbedTemplates:
             date_str = "??/??"
             try:
                 if end_time:
-                    match_date = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+                    if isinstance(end_time, str):
+                        # Handle ISO format string
+                        match_date = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+                    else:
+                        match_date = end_time
                     date_str = match_date.strftime("%m/%d/%y")
                 elif start_time:
-                    match_date = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+                    if isinstance(start_time, str):
+                        # Handle ISO format string  
+                        match_date = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+                    else:
+                        match_date = start_time
                     date_str = match_date.strftime("%m/%d/%y")
-            except (ValueError, AttributeError):
-                # Handle both string and datetime objects
-                try:
-                    if end_time:
-                        if isinstance(end_time, str):
-                            match_date = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
-                        else:
-                            match_date = end_time
-                        date_str = match_date.strftime("%m/%d/%y")
-                    elif start_time:
-                        if isinstance(start_time, str):
-                            match_date = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
-                        else:
-                            match_date = start_time
-                        date_str = match_date.strftime("%m/%d/%y")
-                except:
-                    date_str = "??/??"
+            except (ValueError, AttributeError, TypeError):
+                date_str = "??/??"
             
             # Enhanced rating change information with result context
             rating_before = match.get("rating_mu_before", 0)
@@ -436,7 +432,25 @@ class EmbedTemplates:
                     result_emoji = "⚫"
                 change_str = ""
             
-            # Teammate information
+            # Enhanced team display with placement information
+            team_display = f"Team {team_num}"
+            
+            # Add placement info for placement-based results
+            if team_placement and result_type == "placement":
+                if team_placement == 1:
+                    team_display += " 🥇"
+                elif team_placement == 2:
+                    team_display += " 🥈"
+                elif team_placement == 3:
+                    team_display += " 🥉"
+                else:
+                    team_display += f" (#{team_placement})"
+                    
+                # Show placement context for external competitions
+                if total_teams > 6:
+                    team_display += f"/{total_teams}"
+            
+            # Teammate information with better formatting
             teammates = match.get("teammates", [])
             if teammates:
                 teammate_names = [t['username'] for t in teammates]
@@ -449,15 +463,15 @@ class EmbedTemplates:
                 elif len(teammate_names) == 4:
                     teammate_str = f" + {teammate_names[0]}, {teammate_names[1]}, {teammate_names[2]}, {teammate_names[3]}"
                 elif len(teammate_names) > 4:
-                    # Show first 3 names and count of remaining
-                    remaining = len(teammate_names) - 3
-                    teammate_str = f" + {teammate_names[0]}, {teammate_names[1]}, {teammate_names[2]} +{remaining}"
+                    # Show first 2 names and count of remaining for long teams
+                    remaining = len(teammate_names) - 2
+                    teammate_str = f" + {teammate_names[0]}, {teammate_names[1]} (+{remaining})"
                 else:
                     teammate_str = ""
             else:
                 teammate_str = " (solo)"
             
-            history_text.append(f"{result_emoji} **Team {team_num}** - {date_str}{change_str}{teammate_str}")
+            history_text.append(f"{result_emoji} **{team_display}** - {date_str}{change_str}{teammate_str}")
         
         embed.description = "\n".join(history_text)
         
