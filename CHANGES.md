@@ -3,6 +3,17 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v2.17.2-build.1 - 2025-08-14
+
+### Changes
+- Fixed OpenSkill table creation script to handle databases without is_deleted column
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-14T11:24:51.192009
+
+---
+
 ## v2.17.1-build.1 - 2025-08-14
 
 ### Changes

@@ -1,8 +1,8 @@
 {
   "major": 2,
   "minor": 17,
-  "patch": 1,
+  "patch": 2,
   "build": 1,
-  "last_updated": "2025-08-14T11:15:54.010331",
-  "description": "Fixed team generation logic: 1-4 players=single team, 5=2:3, 6=3:3, 7=3:4, 8=4:4, 9+=3-4 per team (min 3, max 4)"
+  "last_updated": "2025-08-14T11:24:51.192009",
+  "description": "Fixed OpenSkill table creation script to handle databases without is_deleted column"
 }

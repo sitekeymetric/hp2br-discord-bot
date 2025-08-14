@@ -129,7 +129,10 @@ def create_openskill_tables():
         print("✅ OpenSkill tables created successfully!")
         
         # Show summary
-        cursor.execute("SELECT COUNT(*) FROM users WHERE is_deleted = 0 OR is_deleted IS NULL")
+        if has_is_deleted:
+            cursor.execute("SELECT COUNT(*) FROM users WHERE is_deleted = 0 OR is_deleted IS NULL")
+        else:
+            cursor.execute("SELECT COUNT(*) FROM users")
         total_users = cursor.fetchone()[0]
         
         cursor.execute("SELECT COUNT(*) FROM matches WHERE status = 'completed'")
