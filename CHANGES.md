@@ -3,6 +3,17 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v2.17.1-build.1 - 2025-08-14
+
+### Changes
+- Fixed team generation logic: 1-4 players=single team, 5=2:3, 6=3:3, 7=3:4, 8=4:4, 9+=3-4 per team (min 3, max 4)
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-14T11:15:54.010331
+
+---
+
 ## v2.17.0-build.1 - 2025-08-14
 
 ### Changes

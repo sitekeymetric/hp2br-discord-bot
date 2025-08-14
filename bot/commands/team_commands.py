@@ -166,18 +166,33 @@ class TeamCommands(commands.Cog):
                 actual_num_teams = 2
                 special_case_msg = f"**Special Case**: 5 players - splitting into 2 teams (2:3)"
             else:
-                # 6+ players: Calculate optimal team count automatically
-                # Aim for 4-5 players per team, minimum 3 players per team
-                if player_count <= 8:
-                    actual_num_teams = 2  # 6-8 players: 2 teams (3-4 players each)
-                elif player_count <= 12:
-                    actual_num_teams = 3  # 9-12 players: 3 teams (3-4 players each)
-                elif player_count <= 16:
-                    actual_num_teams = 4  # 13-16 players: 4 teams (3-4 players each)
-                elif player_count <= 20:
-                    actual_num_teams = 5  # 17-20 players: 5 teams (3-4 players each)
+                # 6+ players: Calculate optimal team count based on specific requirements
+                if player_count == 6:
+                    actual_num_teams = 2  # 6 players: 3:3 split
+                elif player_count == 7:
+                    actual_num_teams = 2  # 7 players: 3:4 split
+                elif player_count == 8:
+                    actual_num_teams = 2  # 8 players: 4:4 split
                 else:
-                    actual_num_teams = 6  # 21+ players: 6 teams (3+ players each)
+                    # 9+ players: Aim for 3-4 players per team (min 3, max 4)
+                    # Calculate optimal team count to keep teams between 3-4 players
+                    actual_num_teams = max(3, (player_count + 3) // 4)  # Round up, minimum 3 teams
+                    
+                    # Ensure we don't exceed maximum reasonable teams
+                    max_reasonable_teams = min(6, player_count // 3)  # Max 6 teams, min 3 per team
+                    actual_num_teams = min(actual_num_teams, max_reasonable_teams)
+                
+                # Log expected team sizes for verification
+                base_size = player_count // actual_num_teams
+                extra_players = player_count % actual_num_teams
+                expected_sizes = []
+                for i in range(actual_num_teams):
+                    if i < extra_players:
+                        expected_sizes.append(base_size + 1)
+                    else:
+                        expected_sizes.append(base_size)
+                
+                logger.info(f"Player count: {player_count}, Teams: {actual_num_teams}, Expected sizes: {expected_sizes}")
                 
                 # Add NP mode notification
                 if np:
