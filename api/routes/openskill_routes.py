@@ -25,7 +25,7 @@ class OpenSkillRatingResponse(BaseModel):
     last_updated: str
     
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class OpenSkillMatchHistoryResponse(BaseModel):
     id: int
@@ -48,7 +48,7 @@ class OpenSkillMatchHistoryResponse(BaseModel):
     created_at: str
     
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class OpenSkillStatsResponse(BaseModel):
     total_users: int

@@ -1,8 +1,8 @@
 {
   "major": 2,
   "minor": 20,
-  "patch": 0,
+  "patch": 1,
   "build": 1,
-  "last_updated": "2025-08-14T12:06:01.821867",
-  "description": "Added automatic username synchronization to /stats and /leaderboard commands - database now auto-updates when Discord usernames change"
+  "last_updated": "2025-08-14T12:12:03.795702",
+  "description": "Fixed OpenSkill database model relationship error that was causing /stats command to fail with 500 error"
 }

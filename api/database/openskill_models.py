@@ -3,7 +3,7 @@ OpenSkill Database Models
 SQLAlchemy models for OpenSkill parallel rating system
 """
 
-from sqlalchemy import Column, BigInteger, String, Float, Integer, DateTime, ForeignKey, Text
+from sqlalchemy import Column, BigInteger, String, Float, Integer, DateTime, ForeignKey, Text, ForeignKeyConstraint
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -28,9 +28,6 @@ class OpenSkillRating(Base):
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     last_updated = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
-    
-    # Relationships
-    match_history = relationship("OpenSkillMatchHistory", back_populates="user_rating")
     
     @property
     def ordinal(self) -> float:
@@ -81,9 +78,6 @@ class OpenSkillMatchHistory(Base):
     
     # Timestamp
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    
-    # Relationships
-    user_rating = relationship("OpenSkillRating", back_populates="match_history")
     
     @property
     def rating_change_display(self) -> str:

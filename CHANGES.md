@@ -3,6 +3,17 @@
 This file tracks all changes and version updates for the HP2BR Discord Bot system.
 
 ---
+## v2.20.1-build.1 - 2025-08-14
+
+### Changes
+- Fixed OpenSkill database model relationship error that was causing /stats command to fail with 500 error
+
+### Technical Details
+- Build: 1
+- Updated: 2025-08-14T12:12:03.795702
+
+---
+
 ## v2.20.0-build.1 - 2025-08-14
 
 ### Changes
